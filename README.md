@@ -50,18 +50,18 @@ En cas de fausse alerte et d'échec répété de Face ID, le Mac peut lever le v
 
 L'app installée avec un compte gratuit **expire après 7 jours** : il faut la réinstaller **la veille** de chaque démo (J1 §7).
 
-## Équipe et rôles (J1 §6, proposition à valider)
+## Équipe et rôles (J1 §6)
 
-| Rôle | Membre |
-|---|---|
-| Chef de projet | Samuel Dorismond |
-| Architecte sécurité | Manaia Logologofolau |
-| Développeur iOS | Rayann Bouheddou |
-| Red team | tourne à chaque jalon (J1 §6) |
+| Rôle | Membre | GitHub |
+|---|---|---|
+| Chef de projet | Manaia Logologofolau | `@Br4tha` |
+| Architecte sécurité | Samuel Dorismond | `@Samuel-DD07` |
+| Développeur iOS | Rayann Bouheddou | `@Rayouuuuuu` |
+| Red team | tourne à chaque jalon (J1 §6) | |
 
 ## Règles du dépôt (J1 §6.1)
 
-- `main` protégée : on y fusionne seulement par *pull request*. **Un humain valide chaque fusion.**
+- `main` protégée : on y fusionne seulement par *pull request*, avec **2 approbations** (les deux membres qui ne sont pas l'auteur). **Un humain valide chaque fusion.** Propriétaires par dossier : [.github/CODEOWNERS](.github/CODEOWNERS).
 - Le code crypto ou réseau exige **deux relecteurs**, dont l'architecte sécurité.
 - **Pas de *squash*** : l'historique des revues fait partie du livrable.
 - Aucun secret dans le code ni dans les prompts. Chaque prompt utile va dans `JOURNAL_IA.md`.

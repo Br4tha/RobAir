@@ -248,23 +248,23 @@ Elle sert aux actions sensibles vues depuis le Mac : fin d'alerte (« j'ai retro
 
 Le rôle de **Red Team** tourne à chaque jalon. Chaque membre doit pouvoir expliquer **tout le code** à l'oral individuel.
 
-| Rôle | Responsabilités | Membre (proposition, à valider en équipe) |
+| Rôle | Responsabilités | Membre (GitHub) |
 | :--- | :--- | :--- |
-| **Chef de projet** | Planning, backlog, dépôt Git, jalons, journal de prompts IA | Samuel Dorismond |
-| **Architecte sécurité** | STRIDE, choix crypto et leur justification, revues sécurité, relecture obligatoire de tout code crypto | Manaia Logologofolau |
-| **Développeur iOS** | Swift / SwiftUI, CoreBluetooth, CoreLocation, `RobAirKit`, app macOS | Rayann Bouheddou |
+| **Chef de projet** | Planning, backlog, dépôt Git, jalons, journal de prompts IA | Manaia Logologofolau (`@Br4tha`) |
+| **Architecte sécurité** | STRIDE, choix crypto et leur justification, revues sécurité, relecture obligatoire de tout code crypto | Samuel Dorismond (`@Samuel-DD07`) |
+| **Développeur iOS** | Swift / SwiftUI, CoreBluetooth, CoreLocation, `RobAirKit`, app macOS | Rayann Bouheddou (`@Rayouuuuuu`) |
 
 **Rotation de la Red Team** (en plus de son rôle principal, et jamais sur son propre travail) :
 
 | Jalon | Red Team | Cible |
 | :---: | :--- | :--- |
 | J1 | Rayann Bouheddou | Attaque de la STRIDE et du cadrage |
-| J2 | Samuel Dorismond | Attaque de l'architecture et du protocole |
-| J3 | Manaia Logologofolau | Attaque du MVP (rejeu, clonage de balise, logs, stockage) |
+| J2 | Manaia Logologofolau | Attaque de l'architecture et du protocole |
+| J3 | Samuel Dorismond | Attaque du MVP (rejeu, clonage de balise, logs, stockage) |
 | J4 | Toute l'équipe | Audit croisé MASVS de l'app d'un autre groupe |
 
 ### 6.1 Règles Git et revues
-* Branche `main` protégée : on y fusionne seulement par *pull request*.
+* Branche `main` protégée : on y fusionne seulement par *pull request*, avec **2 approbations** (les deux membres qui ne sont pas l'auteur). Les propriétaires de chaque dossier sont dans `.github/CODEOWNERS`.
 * **Un humain valide chaque fusion.** Le code crypto ou réseau exige **deux** relecteurs, dont l'architecte sécurité.
 * L'historique des revues fait partie du livrable : on ne fait pas de *squash* qui effacerait les discussions.
 
