@@ -1,7 +1,8 @@
 # J2 · Architecture et choix cryptographiques justifiés
 
-> Livrable du jalon 2 : schéma iPhone ↔ Mac et choix crypto justifiés.
-> Prérequis : [J1-cadrage.md](J1-cadrage.md). Les codes S1, T1, etc. renvoient au tableau STRIDE du J1.
+> Livrable du jalon 2 (échéance proposée : lun. 30/11/2026) : schéma réseau, protocoles du J1 §3 formalisés, choix crypto justifiés, stack du relais.
+> Prérequis : [J1-cadrage.md](J1-cadrage.md). Les renvois « §3.x » visent le J1, et les lignes S, T, R, I, D, E visent sa matrice STRIDE (§4).
+> Le code correspondant est indiqué à chaque section. Toute la cryptographie est dans le package partagé `RobAirKit`.
 
 ---
 
@@ -9,284 +10,281 @@
 
 ```mermaid
 flowchart LR
-    subgraph iPhone["📱 iPhone · capteur"]
-        UI_I["Interface SwiftUI<br/>(zone protégée)"]
-        PROX["ProximityMonitor<br/>CoreBluetooth central"]
-        LOCK["LockController<br/>machine à états"]
-        CRYPT_I["CryptoService<br/>CryptoKit"]
-        NET_I["SecureChannel<br/>Network.framework"]
-        SE_I[("Secure Enclave<br/>K_id_I · K_bio_I")]
-        KC_I[("Keychain<br/>ThisDeviceOnly")]
+    subgraph B["📱 Balise (2e iPhone, porté par l'utilisateur)"]
+        BP["BeaconPeripheral<br/>GATT + HMAC(K_balise)"]
     end
-
-    subgraph Mac["💻 Mac · centrale"]
-        BEACON["BeaconService<br/>CoreBluetooth peripheral"]
-        NET_M["SecureChannel<br/>NWListener + Bonjour"]
-        CRYPT_M["CryptoService<br/>CryptoKit"]
-        SUPER["Supervision<br/>états + alertes"]
-        JOURNAL[("Journal chaîné<br/>chiffré AES-GCM")]
-        KC_M[("Keychain / SE<br/>K_id_M")]
-        PAIR["Appairage<br/>affichage QR"]
+    subgraph I["📱 iPhone · capteur"]
+        BL["BeaconLink + RuptureDetector"]
+        AS["AlertStateMachine<br/>désarmé / armé / alerte"]
+        V[("Coffre<br/>K_vault · Face ID")]
+        T["TelemetrySender<br/>signée K_tel, HPKE"]
+        C["ChannelClient<br/>session X25519 signée"]
+        SE_I[("Secure Enclave<br/>K_id_iPhone · K_tel_iPhone")]
     end
+    subgraph M["💻 Mac · centrale"]
+        S["ChannelServer"]
+        CM["CentraleModel<br/>tableau de bord, carte"]
+        J[("Journal chaîné,<br/>signé, chiffré")]
+        SE_M[("Secure Enclave<br/>K_id_Mac · Touch ID")]
+    end
+    R[("Relais aveugle<br/>mini-serveur, HTTPS")]
 
-    PROX <-->|"BLE : défi-réponse signé<br/>+ RSSI + déconnexion"| BEACON
-    NET_I <-->|"Wi-Fi local (non fiable)<br/>ECDH signé → AES-GCM"| NET_M
-    PAIR -.->|"QR code (canal visuel de confiance)<br/>clé publique Mac + jeton"| UI_I
-
-    PROX --> LOCK --> UI_I
-    LOCK --> NET_I
-    CRYPT_I --- SE_I
-    CRYPT_I --- KC_I
-    NET_M --> SUPER --> JOURNAL
-    CRYPT_M --- KC_M
+    BP <-->|"BLE : défi / HMAC toutes les 10 s, RSSI"| BL
+    BL --> AS --> V
+    AS --> T
+    C <-->|"Wi-Fi local : session E2E<br/>(Face ID côté iPhone)"| S
+    T -->|"Wi-Fi local : enveloppe HPKE"| S
+    T -->|"hors portée : HTTPS + pin"| R
+    CM -->|"interroge toutes les 30 s<br/>pendant une alerte"| R
+    S --> CM --> J
 ```
-
-**Trois canaux, trois niveaux de confiance :**
 
 | Canal | Sert à | Confiance | Protection |
 |---|---|---|---|
-| **QR code** (écran du Mac → caméra de l'iPhone) | Appairage initial, une seule fois | ✅ Fiable : il faut être physiquement devant le Mac | Jeton à usage unique, expire en 2 min |
-| **BLE** | Mesurer la proximité | ❌ Non fiable : clonable, brouillable | Défi-réponse signé, fail-safe |
-| **Wi-Fi local** | États, alertes, journal | ❌ Non fiable : écoute, injection, faux Mac | Handshake ECDH signé, AES-GCM, anti-rejeu |
+| **QR code** | Appairage Mac ↔ capteur et balise ↔ capteur, secours | ✅ Visuel : il faut être devant l'écran | Jeton à usage unique (5 min), empreinte courte comparée par l'humain |
+| **BLE** | Présence de la balise | ❌ Clonable, brouillable | Défi HMAC toutes les 10 s, rupture = alerte (fail-safe) |
+| **Wi-Fi local** | Session, télémétrie, secours | ❌ Écoute, injection, faux Mac | Handshake signé, AES-GCM, HPKE, signatures, anti-rejeu |
+| **Internet / relais** | Télémétrie hors de portée | ❌ Relais curieux ou compromis | TLS 1.3 + pinning **et** chiffrement de bout en bout |
 
-## 2. Les clés : qui possède quoi
+## 2. Inventaire final des clés
 
-| Clé | Type | Où | Protection d'accès | Sert à |
-|---|---|---|---|---|
-| **K_id_I** | P-256 signature | Secure Enclave de l'iPhone | `AfterFirstUnlockThisDeviceOnly`, sans Face ID | Signer le handshake de chaque session (fonctionne en arrière-plan) |
-| **K_bio_I** | P-256 signature | Secure Enclave de l'iPhone | `WhenPasscodeSetThisDeviceOnly` + `biometryCurrentSet` | Signer les **actions sensibles** (déverrouillage, désarmement) : non-répudiation |
-| **K_vault** | AES-256 symétrique | Keychain de l'iPhone | `WhenPasscodeSetThisDeviceOnly` + `biometryCurrentSet` | Chiffrer la zone protégée de l'app |
-| **K_id_M** | P-256 signature | Secure Enclave du Mac (Apple Silicon ou T2), sinon Keychain | `ThisDeviceOnly` | Signer le handshake et les réponses aux défis BLE |
-| **K_journal** | AES-256 + HMAC | Keychain du Mac | `ThisDeviceOnly` | Chiffrer et sceller le journal |
-| **eph_I, eph_M** | P-256 accord de clés | **Mémoire uniquement**, détruites après le handshake | — | Confidentialité persistante |
-| **k_i→m, k_m→i** | AES-256 | Mémoire, une paire par session | — | Chiffrer les messages, une clé par sens |
-| **Jeton d'appairage** | 32 octets aléatoires | QR code + mémoire du Mac | Usage unique, 120 s | Prouver au Mac que l'iPhone a vu le QR code |
+| Clé | Type | Où | Protection | Usage | Code |
+|---|---|---|---|---|---|
+| **K_id_iPhone** | P-256 | Secure Enclave iPhone | `WhenUnlockedThisDeviceOnly` + `biometryCurrentSet` | Handshakes (§3.3), réponses aux défis du Mac (§3.7) | `DeviceIdentity` |
+| **K_tel_iPhone** | P-256 | Secure Enclave iPhone | `AfterFirstUnlockThisDeviceOnly`, sans biométrie | **Télémétrie seulement** : le Mac la refuse pour toute autre action | `DeviceIdentity` |
+| **K_vault** | AES-256 | Keychain iPhone | `WhenUnlockedThisDeviceOnly` + `biometryCurrentSet` | Coffre | `VaultStore` |
+| **K_balise** | 256 bits (HMAC) | Keychain des deux iPhone | `AfterFirstUnlockThisDeviceOnly` | Preuve de présence de la balise (§3.9) | `BeaconKeyStore` |
+| **K_id_Mac** | P-256 | Secure Enclave du Mac (repli : Keychain + Touch ID) | Touch ID / mot de passe (`userPresence`) | Handshakes, confirmation d'appairage, secours, signature de K_enc | `MacIdentity` |
+| **K_enc_Mac** | X25519 | Keychain du Mac | Rotation hebdomadaire, clé publique **signée par K_id_Mac**, anciennes clés gardées 14 jours | Réception HPKE de la télémétrie | `EncryptionKeyring` |
+| **K_journal** | P-256 + AES-256 | Keychain du Mac | `AfterFirstUnlockThisDeviceOnly` | Signer chaque entrée du journal et chiffrer le fichier | `JournalStore` |
+| Éphémères de session | X25519 | Mémoire | Détruites après usage | Forward secrecy | `Handshake.swift` |
+| Clés de session | AES-256 ×2 (une par sens) | Mémoire | Détruites à la fermeture, renouvelées toutes les 15 min | Messages de session | `Record.swift` |
+| Jeton d'appairage | 32 octets | QR + mémoire du Mac | Usage unique, 5 min, 3 essais | Preuve « j'ai vu le QR » | `Pairing.swift` |
+| Jetons du relais | 256 bits (écriture / lecture) | Keychain (iPhone : écriture ; Mac : lecture) | Stockés **hachés** sur le relais | Accès à la boîte aux lettres | `RelayAPI.swift` |
 
-> **Pourquoi deux clés de signature sur l'iPhone ?** Votre J1 prévoyait de conditionner les signatures à Face ID. Mais l'iPhone doit pouvoir **signer en arrière-plan**, téléphone verrouillé dans la poche, pour établir une session et envoyer une alerte. On ne peut pas demander Face ID à chaque message.
-> D'où K_id_I pour la routine (sans Face ID) et K_bio_I pour les actions sensibles (avec Face ID). Si un attaquant vole la session, il peut au pire envoyer de faux heartbeats. Il ne peut jamais produire un « déverrouillage signé ».
+## 3. Écarts et précisions par rapport au J1
 
-> **À vérifier au J3 :** l'accès à la Secure Enclave depuis une app macOS signée avec un compte gratuit. Si ça bloque, repli sur une clé P-256 logicielle dans le Keychain du Mac (`ThisDeviceOnly`). À documenter dans ce cas.
+Relevés en formalisant les protocoles. **À valider en équipe** : chaque point peut être gardé, modifié ou rejeté, et la décision doit être reportée dans le journal IA.
 
-> **Contrainte de salle : un MacBook différent à chaque séance.** La clé K_id_M est liée au Mac qui l'a créée : elle ne sort pas de sa Secure Enclave ou de son Keychain. À chaque nouveau Mac, il faut donc **refaire l'appairage**, ce qui prend environ 30 s par QR code. C'est voulu : copier une clé privée d'identité d'une machine à l'autre irait contre le principe des clés non exportables.
-> En fin de séance, il faut **effacer les clés et le journal du Mac prêté** (bouton « Réinitialiser la centrale »). Le journal étant chiffré, l'exporter n'a de sens que pour la démo.
-
-## 3. Phase 1 : appairage par QR code (une seule fois par Mac)
-
-```mermaid
-sequenceDiagram
-    autonumber
-    actor U as Utilisateur
-    participant M as Mac
-    participant I as iPhone
-
-    M->>M: Génère jeton T (32 octets aléatoires, expire en 120 s)
-    M->>U: Affiche QR = {v1, service Bonjour, PubId_M, T}
-    U->>I: Scanne le QR (caméra)
-    I->>I: Épingle PubId_M (canal visuel = fiable)
-    I->>I: Crée K_id_I et K_bio_I dans la Secure Enclave
-    I->>M: PAIR_REQ {PubId_I, PubBio_I, HMAC_T("pair-v1" ‖ PubId_I ‖ PubBio_I ‖ PubId_M)}
-    M->>M: Vérifie le HMAC (temps constant) puis invalide T
-    M-->>U: Affiche le code SAS à 6 chiffres
-    I-->>U: Affiche le même code SAS
-    U->>M: Confirme que les codes sont identiques
-    M->>M: Épingle PubId_I et PubBio_I (Keychain)
-    M->>I: PAIR_OK signé par K_id_M
-```
-
-**Explication pas à pas :**
-- **Le QR code transporte la clé publique du Mac.** Comme on la lit physiquement sur l'écran, un attaquant réseau ne peut pas la remplacer. C'est ce qui empêche l'homme du milieu (slide 17 : « comparer une empreinte par QR code »).
-- **Le jeton T prouve au Mac que la demande vient de l'iPhone qui a scanné.** L'attaquant réseau ne l'a jamais vu, donc il ne peut pas calculer le HMAC (S3).
-- **Le code SAS** (*Short Authentication String*) est calculé comme `SHA-256(PubId_M ‖ PubId_I ‖ PubBio_I)` puis réduit à 6 chiffres. C'est une double vérification humaine, comme dans Signal ou l'appairage Bluetooth.
-- **Usage unique et expiration** : une photo du QR code prise plus tard ne sert à rien.
-- `HMAC.isValidAuthenticationCode` de CryptoKit compare **en temps constant**, ce qui évite une attaque par mesure du temps de réponse.
-
-## 4. Phase 2 : ouverture d'une session chiffrée (à chaque connexion Wi-Fi)
-
-C'est un **échange Diffie-Hellman éphémère signé**, le même principe que TLS 1.3 ou le protocole SIGMA.
-
-```mermaid
-sequenceDiagram
-    autonumber
-    participant I as iPhone
-    participant M as Mac
-
-    Note over I,M: Découverte via Bonjour (_robair._tcp), connexion TCP
-    I->>I: Génère eph_I et N_I (32 octets aléatoires)
-    I->>M: HELLO {v1, Empreinte(PubId_I), ePub_I, N_I}
-    M->>M: Empreinte connue ? Sinon, fermeture
-    M->>M: Génère eph_M et N_M
-    M->>I: HELLO_ACK {ePub_M, N_M, Sig_K_id_M(H(transcript))}
-    I->>I: Vérifie la signature avec PubId_M épinglée
-    I->>M: FINISH {Sig_K_id_I(H(transcript))}
-    M->>M: Vérifie la signature avec PubId_I épinglée
-    Note over I,M: Les deux calculent S = ECDH(eph_I, ePub_M) = ECDH(eph_M, ePub_I)
-    Note over I,M: HKDF-SHA256(S, sel = N_I ‖ N_M, info = "robair-v1" ‖ empreintes) → k_i→m ‖ k_m→i
-    Note over I,M: eph_I et eph_M sont détruites (confidentialité persistante)
-```
-
-- **transcript** = tous les champs échangés jusque-là, mis bout à bout. La signature couvre **tout** l'échange, donc un attaquant ne peut ni remplacer `ePub_M` par la sienne (S1), ni rejouer un ancien handshake (les nonces `N_I` et `N_M` sont neufs).
-- Si une vérification échoue, la connexion est fermée et l'état devient `NON VÉRIFIÉ` (fail-safe).
-- Délai maximal de 5 s pour l'ensemble du handshake (D2).
-
-### Pourquoi signer les clés éphémères ?
-Un échange ECDH « nu » est vulnérable à l'**homme du milieu**. L'attaquant fait un ECDH avec chacun des deux côtés et relaie. La signature par les clés d'identité épinglées lie les clés éphémères à des appareils connus.
-
-### Pourquoi des clés éphémères en plus des clés d'identité ?
-C'est la **confidentialité persistante** (slide 17). Si un jour la clé d'identité fuit, l'attaquant peut se faire passer pour l'appareil à l'avenir, mais il **ne peut pas déchiffrer les sessions passées** qu'il aurait enregistrées. Les clés de session venaient d'éphémères qui n'existent plus.
-
-## 5. Phase 3 : messages chiffrés et anti-rejeu
-
-### Format d'une trame
-
-```
-┌─────────────┬──────────┬──────────┬───────────────┬────────────────────────┬──────────┐
-│ longueur u32│ version  │ type     │ compteur u64  │ données chiffrées      │ tag GCM  │
-│ (≤ 4096)    │ 1 octet  │ 1 octet  │ big-endian    │ (JSON : état, ts, …)   │ 16 octets│
-└─────────────┴──────────┴──────────┴───────────────┴────────────────────────┴──────────┘
-              └──────── en-tête = AAD (authentifié, non chiffré) ──┘
-```
-
-- **AES-256-GCM** chiffre le contenu et produit un **tag d'authentification**. L'en-tête n'est pas chiffré, puisque le destinataire doit lire le compteur, mais il est **authentifié** comme AAD : le modifier fait échouer le tag (T1).
-- **Nonce GCM (12 octets) = 4 octets à zéro ‖ compteur sur 8 octets.** Le compteur ne se répète jamais et il y a **une clé par sens**, donc le même couple (clé, nonce) n'est jamais réutilisé. C'est **la** règle vitale d'AES-GCM : réutiliser un nonce permet de récupérer des informations sur les messages et de forger des tags. C'est exactement le piège « IV fixe » de la slide 9.
-
-### Les trois protections anti-rejeu (slide 17)
-| Mécanisme | Ce qu'il bloque |
-|---|---|
-| **Compteur strictement croissant** par sens | Rejeu d'un message dans la même session : compteur ≤ dernier reçu, donc rejet et fermeture |
-| **Clés de session neuves** à chaque handshake (nonces N_I et N_M) | Rejeu d'un message d'une ancienne session : il ne se déchiffre pas |
-| **Horodatage** dans le contenu, fenêtre de ±60 s | Message retardé ou mis en attente par l'attaquant |
-
-### Types de messages
-| Type | Sens | Contenu | Signé par K_bio_I ? |
+| # | Point du J1 | Problème relevé | Décision proposée (implémentée) |
 |---|---|---|---|
-| `HEARTBEAT` | I → M | état courant, ts | non |
-| `STATE` | I → M | `NEAR` / `AWAY` / `LOCKED`, ts | non |
-| `ALERT_AWAY` | I → M | raison (RSSI, déconnexion, défi échoué), ts | non |
-| `SENSITIVE_EVENT` | I → M | `UNLOCK` / `DISARM`, ts, **signature Face ID** | **oui** (R1) |
-| `ACK` | M → I | compteur acquitté | non |
+| 1 | §3.3 : handshake signé par **K_id_iPhone (Face ID)**, renégocié toutes les 15 min | Face ID impossible en arrière-plan, et un Face ID toutes les 15 min serait pénible | La **session n'est ouverte qu'au premier plan** (un Face ID). Le **renouvellement des 15 min se fait dans la session** : nouvel échange X25519 authentifié par la session en cours, sans nouvelle signature, et donc sans Face ID. La forward secrecy est conservée. **La télémétrie et le secours n'ont pas besoin de session** : ils sont protégés par HPKE et des signatures. |
+| 2 | §2.2 : **Touch ID à chaque signature** de K_id_Mac | Chaque reconnexion de l'iPhone exigerait un opérateur au clavier | **« Session opérateur »** : un Touch ID rend la centrale disponible 30 min pour les handshakes. Hors de cette fenêtre, les sessions sont **refusées** (fail-safe, entrée au journal). Les signatures rares et sensibles (confirmation d'appairage, secours, rotation de K_enc) **redemandent toujours** Touch ID. |
+| 3 | §3.5 : « une fois acquitté, supprimé de la file » | Un accusé non authentifié permettrait à un attaquant réseau de faire vider la file de l'iPhone | Le contenu chiffré porte un **`ackSecret`** aléatoire. Le Mac le renvoie pour prouver la réception : seul lui a pu le déchiffrer. |
+| 4 | §3.4 : fenêtre de 30 s, 300 s pour la télémétrie différée | Le Mac ne peut pas savoir si une télémétrie reçue en local sort de la file d'attente | La **fenêtre de 300 s s'applique à toute la télémétrie**. Le rejeu reste bloqué par `seq`. ⚠️ **Question ouverte :** une position restée plus de 5 min en file (relais injoignable) sera refusée. Faut-il élargir la fenêtre à 72 h, la durée de vie du relais, et ne garder que `seq` contre le rejeu ? |
+| 5 | §3.9 : `HMAC(K_balise, défi)` | Pas de séparation de domaine | `HMAC(K_balise, "robair-beacon-proof-v1" ‖ défi)`. C'est la même idée, avec un usage explicite. |
+| 6 | §3.3 : ECDH X25519 | Une clé X25519 « de faible ordre » donne un secret partagé **nul**, que la bibliothèque **n'a pas refusé** | Vérification explicite (RFC 7748 §6.1). **Bug trouvé par le test** `testLowOrderEphemeralIsRejected`. |
+| 7 | §4 T : « journal chaîné par hash et entrées signées » | Une chaîne seule ne détecte pas la suppression des **dernières** entrées | Signature ECDSA (K_journal) de chaque entrée, plus une **ancre** (nombre d'entrées et dernier hash) gardée à part dans le Keychain. |
+| 8 | §1.3 : localisation en continu et `location` en arrière-plan | « Toujours » est une permission large ; démarrer le GPS en arrière-plan l'exige normalement | Autorisation **« Lors de l'utilisation »** seulement. Une `CLBackgroundActivitySession` (iOS 17) est ouverte **à l'armement**, ce qui permet de démarrer le GPS en arrière-plan si une alerte survient. iOS affiche l'indicateur bleu tant que la surveillance est armée : c'est transparent pour l'utilisateur. |
+| 9 | §3.8 : défi de secours envoyé par le réseau | N'importe qui sur le Wi-Fi peut envoyer une fausse demande au Mac | Un **code à 6 chiffres** (hash du défi) est affiché sur l'iPhone et sur le Mac. L'opérateur ne signe que s'il voit l'iPhone et le même code. Trois demandes par minute au plus. |
+| 10 | §3.4 : « tout champ inconnu fait rejeter le message » | `JSONDecoder` ignore les champs inconnus par défaut | Décodeur strict `StrictJSON` : il compare récursivement les clés JSON aux propriétés déclarées. |
+| 11 | §3.6 : pinning de la clé publique | Let's Encrypt change de clé au renouvellement | Pin = SHA-256 de la clé publique ECDSA P-256. Le certificat est émis avec `certbot --reuse-key`, et le pin est calculé par `relay/tools/pin.sh`. Un test vérifie que serveur et iOS calculent le même pin. |
+| 12 | §2.3 : stack du relais « à trancher au J2 » | — | **Python 3, bibliothèque standard uniquement** : zéro dépendance tierce (voir §11 et [relay/README.md](../relay/README.md)). |
+| 13 | Mac « balise » (ancienne architecture) | La balise est désormais le 2e iPhone | Le Mac n'utilise plus le Bluetooth : l'entitlement a été retiré (moindre privilège). |
+| 14 | État après redémarrage | Si iOS tue l'app en alerte, l'alerte ne doit pas disparaître | L'état armé ou en alerte est **persisté** dans le Keychain. Un chien de garde passe en alerte si l'app est armée mais que la balise n'est pas confirmée dans les 20 s. |
 
-> **AES-GCM authentifie déjà, pourquoi une signature en plus pour les événements sensibles ?** AES-GCM prouve que le message vient de *quelqu'un qui a la clé de session*. Or le Mac a aussi cette clé : il pourrait fabriquer le message lui-même. Ce n'est donc **pas une preuve opposable**. Une signature ECDSA par K_bio_I ne peut venir **que** de l'iPhone, **après Face ID**. C'est la non-répudiation.
+## 4. Appairages (§3.2 et §3.9)
 
-## 6. Détection de proximité (BLE)
+### 4.1 Capteur ↔ Mac
 
 ```mermaid
 sequenceDiagram
-    participant I as iPhone (central)
-    participant M as Mac (peripheral)
-    loop toutes les 10 s
-        I->>M: Écrit le défi C (16 octets aléatoires)
-        M->>I: Sig_K_id_M("ble-proof-v1" ‖ C ‖ Empreinte(PubId_I))
-        I->>I: Vérifie la signature + délai < 2 s + RSSI
+    autonumber
+    actor U as Opérateur
+    participant M as Mac
+    participant I as iPhone capteur
+    U->>M: Touch ID (session opérateur ; crée K_enc si besoin)
+    M->>U: QR = {v, mac_id, nom Bonjour, pk_id_Mac, K_enc signée, relais (URL + pin), jeton T (5 min)}
+    U->>I: Scanne le QR
+    I->>I: Vérifie : K_enc signée par pk_id_Mac du QR, expiration, format strict
+    I->>I: Crée K_id_iPhone (Face ID) et K_tel_iPhone dans la Secure Enclave
+    I->>M: PAIR_REQ {pk_id, pk_tel, HMAC_T(étiquette ‖ pk_id ‖ pk_tel ‖ pk_id_Mac ‖ pk_enc)}
+    M->>M: HMAC en temps constant, jeton consommé (3 essais max)
+    M-->>U: Empreinte courte (6 chiffres sur TOUTES les clés publiques)
+    I-->>U: Même empreinte
+    U->>M: « Identiques » + Touch ID frais
+    M->>I: PAIR_RESULT signé par K_id_Mac
+    Note over M,I: À la 1re session : le Mac crée la boîte sur le relais et envoie le jeton d'ÉCRITURE (canal chiffré). Il garde le jeton de lecture.
+```
+
+### 4.2 Capteur ↔ balise
+
+La balise tire au hasard **K_balise** (32 octets) et un **UUID de service**, puis les affiche en QR code, à la demande et pendant 60 s au plus. Le capteur scanne ce QR. Le QR contient un secret : il ne faut le montrer qu'au capteur. « Générer une nouvelle clé » invalide l'ancien appairage.
+
+## 5. Session locale (§3.3) · `Handshake.swift`
+
+```mermaid
+sequenceDiagram
+    participant I as iPhone (Face ID → K_id_iPhone)
+    participant M as Mac (session opérateur → K_id_Mac)
+    I->>M: ClientHello {iphone_id, ePub_I (X25519), N_I}
+    M->>M: iPhone appairé ? centrale déverrouillée ? sinon refus
+    M->>I: ServerHello {mac_id, ePub_M, N_M, Sig_K_id_Mac(étiquette_serveur ‖ H)}
+    I->>I: Vérifie avec pk_id_Mac épinglée (bloque le faux Mac)
+    I->>M: ClientFinish {Sig_K_id_iPhone(étiquette_client ‖ H)}
+    M->>M: Vérifie avec pk_id_iPhone épinglée (bloque le faux iPhone)
+    Note over I,M: H = SHA-256(étiquette ‖ iphone_id ‖ mac_id ‖ ePub_I ‖ N_I ‖ ePub_M ‖ N_M)
+    Note over I,M: k_i→m, k_m→i = HKDF-SHA256(X25519(éphémères), salt = H, info = sens)
+    loop toutes les 15 min
+        I->>M: rekey {ePub', N'} (chiffré)
+        M->>I: rekeyAck {ePub'', N''} (chiffré, ancienne clé), puis bascule
+        Note over I,M: nouvelles clés = HKDF(X25519, salt = SHA-256(H ‖ nouvelles valeurs))
     end
 ```
 
-- Le Mac annonce un **UUID de service générique** (sans nom ni donnée personnelle, I4).
-- **Mode connecté** plutôt que simple écoute des annonces : iOS réveille l'app en arrière-plan en cas de déconnexion (mode `bluetooth-central`).
-- Le défi inclut l'empreinte de l'iPhone. Une réponse obtenue pour un autre appareil ne sert donc à rien.
-- **Pourquoi pas un iBeacon (Core Location) ?** Il faudrait la permission de **localisation**, ce qui va contre la minimisation RGPD et le moindre privilège. De plus, une annonce iBeacon se clone (S2).
+- Les **étiquettes client et serveur sont différentes** : une signature ne peut pas être renvoyée « en miroir ».
+- La signature couvre **toute** la transcription : remplacer une clé éphémère (homme du milieu) casse la vérification.
+- **Forward secrecy :** les éphémères sont détruites. Une clé d'identité volée plus tard ne déchiffre pas les sessions passées.
+- **Nouvelle négociation** à chaque reconnexion et après chaque levée de verrouillage, avec le Face ID qui vient d'être fait.
 
-### Règle « éloigné »
-L'iPhone passe à `ÉLOIGNÉ` dès que **l'une** de ces conditions est vraie :
-1. Déconnexion BLE.
-2. Défi sans réponse valide sous 2 s, ou signature invalide.
-3. RSSI moyen sur 5 mesures inférieur à −80 dBm (seuil à calibrer en démo). Le retour à `PROCHE` exige un RSSI supérieur à −70 dBm : cet écart (**hystérésis**) évite de clignoter entre les deux états.
+## 6. Enveloppe et règles de réception (§3.4) · `Record.swift`, `Wire.swift`
 
-## 7. Machine à états de l'iPhone (fail-safe)
+```
+[longueur u32][version u8][type u8][sender_id 16][seq u64][timestamp ms u64] [chiffré] [tag 16]
+              └──────────────── en-tête = AAD (authentifié, non chiffré) ──┘
+nonce AES-GCM = préfixe de sens (4 octets) ‖ seq (8 octets)
+```
+
+- **Nonce jamais réutilisé :** `seq` strictement croissant, une clé par sens et un préfixe de sens.
+- **Anti-rejeu :** refus si `seq ≤ dernier accepté` ou si l'horodatage s'écarte de plus de ±30 s. Le dernier `seq` n'avance **qu'après** un déchiffrement réussi. Sinon, une trame forgée avec un `seq` énorme bloquerait la session.
+- **Validation stricte :** 4 Ko maximum, rejetés *avant* allocation ; type attendu à chaque étape ; un type chiffré n'est jamais accepté en clair ; décodage strict (champ inconnu = rejet) ; bornes vérifiées.
+- **Erreur = rejet silencieux + entrée au journal.** Aucun détail n'est renvoyé à l'émetteur.
+
+## 7. Détection de rupture et machine à états (§3.9) · `Beacon.swift`, `AlertState.swift`
+
+**Rupture** dès que l'une de ces conditions est vraie :
+1. déconnexion BLE ;
+2. réponse HMAC invalide ou absente sous 2 s, ou aucune preuve valide depuis 15 s ;
+3. RSSI moyen sur 5 s sous **−85 dBm** pendant **plus de 3 s**. Pour sortir de cet état, il faut remonter au-dessus de **−75 dBm** (hystérésis).
 
 ```mermaid
 stateDiagram-v2
-    [*] --> VERROUILLE : démarrage (verrouillé par défaut)
-    VERROUILLE --> DEVERROUILLE : Face ID OK ET défi BLE OK
-    DEVERROUILLE --> VERROUILLE : éloigné / déconnexion / défi échoué
-    DEVERROUILLE --> VERROUILLE : app en arrière-plan > 30 s
-    DEVERROUILLE --> VERROUILLE : toute erreur inattendue
-    VERROUILLE --> VERROUILLE : Face ID annulé ou échoué
+    [*] --> Désarmé
+    Désarmé --> Armé : armer (balise PRÉSENTE, preuve HMAC)
+    Armé --> Alerte : rupture, ou anomalie (fail-safe)
+    Alerte --> Désarmé : Face ID
+    Alerte --> Désarmé : secours signé par le Mac (après 3 échecs Face ID)
+    Alerte --> Désarmé : défi « fin d'alerte » (§3.7)
+    Armé --> Désarmé : Face ID, ou défi « désarmer »
+    note right of Alerte : le retour de la balise NE lève PAS l'alerte
 ```
 
-- **Démarrage = verrouillé.** Il faut une preuve pour ouvrir, pas l'inverse (« échouer en sécurité », slide 15).
-- Au verrouillage, la clé `K_vault` déchiffrée est **effacée de la mémoire** et l'interface protégée est masquée.
-- **Côté Mac** : sans heartbeat valide depuis 30 s, ou en cas de perte BLE, l'état passe à `NON VÉRIFIÉ`. Le Mac ne suppose jamais que « tout va bien » par défaut.
+**Entrée en alerte (§3.5, étape 1) :** le coffre est fermé et effacé de la mémoire (`SecureWipe` : `memset_s`, effacement au mieux), la session est détruite, l'alarme sonne et une notification locale s'affiche. **La première alerte part immédiatement**, avant même la première position GPS.
 
-## 8. Stockage et protection des données
+## 8. Télémétrie (§3.5) · `Telemetry.swift`, `TelemetrySender.swift`
 
-| Donnée | Emplacement | Protection | Justification |
-|---|---|---|---|
-| Clés privées K_id_I, K_bio_I | Secure Enclave (le Keychain ne garde qu'un blob opaque) | Non exportables | Slide 16 : « des clés qui ne sortent jamais » |
-| Clés publiques épinglées | Keychain | `ThisDeviceOnly` | Intégrité (A6), jamais dans les sauvegardes iCloud |
-| Contenu de la zone protégée | Fichier | `FileProtectionType.complete` + chiffré par K_vault | Illisible téléphone verrouillé (I3) |
-| États et compteurs de session | **Mémoire** uniquement | — | Rien à écrire en arrière-plan |
-| Journal du Mac | Fichier | AES-GCM (K_journal) + chaîne de hachages + HMAC | T2, R2, slide 5 (« sauvegarde chiffrée ») |
-
-> **Point corrigé par rapport au J1 :** la protection `Complete` rend un fichier illisible **dès que le téléphone est verrouillé**. Or l'app tourne en arrière-plan, téléphone verrouillé. On a donc séparé les données : le contenu protégé est en `Complete` (on n'en a besoin que lorsqu'il est ouvert) et tout ce dont l'arrière-plan a besoin reste en mémoire.
-
-**Autres mesures (slide 19) :**
-- **Aperçu multitâche** : un écran de masquage s'affiche quand `scenePhase` passe à `.inactive`.
-- **Presse-papiers** : l'app n'y copie rien.
-- **Logs** : `os.Logger` avec `privacy: .private` par défaut, jamais de clé, de jeton, de nonce ni de RSSI. Les `print()` sont interdits (règle de revue).
-
-### Journal chaîné du Mac
+```mermaid
+sequenceDiagram
+    participant I as iPhone (K_tel, sans Face ID)
+    participant M as Mac
+    participant R as Relais
+    I->>I: payload {TELEMETRY, iphone_id, seq, ts, lat, lon, précision, batterie, cause, ackSecret}
+    I->>I: signature K_tel, puis HPKE(K_enc_Mac, info = étiquette ‖ iphone_id ‖ mac_id, AAD = en-tête)
+    I->>I: mise en file (CompleteUnlessOpen, 100 max)
+    alt Mac joignable sur le Wi-Fi local
+        I->>M: TELEMETRY {enveloppe}
+        M->>M: HPKE, signature K_tel, seq, ±300 s, journal, carte
+        M->>I: TELEMETRY_ACK {ackSecret}
+    else hors de portée
+        I->>R: POST /messages (jeton d'écriture, TLS 1.3 + pin)
+        M->>R: GET toutes les 30 s pendant l'alerte (jeton de lecture)
+        M->>R: DELETE après traitement
+    end
+    I->>I: retire de la file une fois acquitté
 ```
-entrée_n = { ts, type, appareil (empreinte), données, signature_bio?,
-             h_prec = SHA-256(entrée_{n-1}) }
-sceau    = HMAC-SHA256(K_journal, entrée_n)
-```
-Modifier ou supprimer une entrée change son hachage. L'entrée suivante ne correspond plus, et la rupture est détectable. Le HMAC empêche de recalculer toute la chaîne sans la clé.
 
-## 9. Choix cryptographiques justifiés
+- **HPKE** (RFC 9180, `HPKE.Ciphersuite(kem: .Curve25519_HKDF_SHA256, kdf: .HKDF_SHA256, aead: .AES_GCM_256)`) chiffre **sans session ouverte**. C'est ce qui permet la télémétrie en arrière-plan et via le relais.
+- **Signer puis chiffrer :** le relais ne peut ni lire, ni fabriquer. Quelqu'un qui connaît la clé HPKE publique du Mac peut chiffrer, mais sans K_tel sa télémétrie est refusée (test `testForgedTelemetryIsRejected`).
+- **Forward secrecy de la télémétrie :** elle est limitée à la période de rotation de K_enc_Mac (une semaine). C'est le compromis accepté au J1.
 
-Règle d'or (slide 16) : **ne jamais inventer sa propre cryptographie.** Nous n'utilisons que des primitives standard de CryptoKit, assemblées selon un schéma connu (handshake de type TLS 1.3 ou SIGMA).
+## 9. Défis et secours (§3.7, §3.8) · `Challenges.swift`
 
-| Besoin | Choix | Alternatives rejetées et pourquoi |
+| | Défi Mac → iPhone (§3.7) | Déverrouillage de secours (§3.8) |
 |---|---|---|
-| Chiffrer les messages | **AES-256-GCM** (`AES.GCM`) | **AES-ECB** : les blocs identiques donnent des chiffrés identiques, des motifs fuient. **AES-CBC** seul : aucune intégrité, vulnérable au *padding oracle*. ChaCha20-Poly1305 serait aussi correct, mais AES est accéléré matériellement sur les puces Apple. |
-| Signer | **ECDSA P-256** (`SecureEnclave.P256.Signing`) | Ed25519/Curve25519 est excellent mais **non supporté par la Secure Enclave**, qui ne gère que P-256. RSA : clés lourdes, pas de Secure Enclave. |
-| Échanger les clés | **ECDH P-256 éphémère** (`P256.KeyAgreement`) | Clé partagée fixe : pas de confidentialité persistante. RSA (chiffrer la clé de session) : pas de confidentialité persistante non plus. |
-| Dériver les clés de session | **HKDF-SHA256** | Utiliser directement le secret ECDH comme clé : il n'est pas uniformément aléatoire et il ne donnerait qu'une clé pour les deux sens. |
-| Intégrité et sceau du journal, preuve d'appairage | **SHA-256 / HMAC-SHA256** | **MD5, SHA-1** : collisions connues, cassés. Hachage simple sans clé : n'importe qui peut le recalculer. |
-| Aléa (nonces, défis, jetons) | **`SymmetricKey(size:)` / `SecRandomCopyBytes`** | `rand()`, `arc4random_uniform` sur une graine fixe, `Date()` : **aléa non cryptographique**, prévisible (slide 9). |
-| Canal Wi-Fi | **Protocole maison sur TCP construit avec CryptoKit** | **TLS 1.3** avec certificats auto-signés épinglés serait la réponse industrielle. Le sujet demande explicitement de maîtriser ECDH, HKDF et AES-GCM, et ces primitives s'intègrent directement aux clés Secure Enclave. Notre handshake reproduit la structure de TLS 1.3. **Risque assumé :** un protocole assemblé à la main est plus fragile, d'où les tests d'attaque de la section 11. |
-| Comparaison de secrets | **`isValidAuthenticationCode`** (temps constant) | `==` sur des `Data` : le temps de réponse révèle combien d'octets correspondent. |
+| Qui émet le défi | Le Mac (32 octets, 30 s) | L'iPhone (32 octets, 120 s) |
+| Qui signe | iPhone, **K_id_iPhone après Face ID** | Mac, **K_id_Mac après Touch ID** |
+| Message signé | étiquette ‖ défi ‖ mac_id ‖ iphone_id ‖ action | étiquette ‖ `EMERGENCY_UNLOCK` ‖ défi ‖ iphone_id ‖ horodatage |
+| Transport | Session chiffrée | Réseau local **sans session**, ou QR code dans les deux sens (webcam du Mac) |
+| Anti-rejeu | Défi consommé dès la 1re présentation, même fausse | Défi consommé, ordre lié au défi en attente |
+| Effet | Fin d'alerte ou désarmement, journalisés **avec la signature comme preuve** | Lève le verrouillage **de RobAir** (pas d'iOS). Le coffre exige toujours Face ID. |
 
-## 10. Permissions demandées (moindre privilège)
+## 10. Journal d'audit · `EventJournal.swift`
 
-| Plateforme | Clé `Info.plist` ou entitlement | Demandée quand | Pourquoi |
-|---|---|---|---|
-| iPhone | `NSBluetoothAlwaysUsageDescription` | Au premier armement | Proximité BLE |
-| iPhone | `UIBackgroundModes : bluetooth-central` | — | Être réveillé à la déconnexion |
-| iPhone | `NSCameraUsageDescription` | **Uniquement** à l'appairage | Lire le QR code |
-| iPhone | `NSFaceIDUsageDescription` | Au premier déverrouillage | Actions sensibles |
-| iPhone | `NSLocalNetworkUsageDescription` + `NSBonjourServices` (`_robair._tcp`) | À la connexion au Mac | Wi-Fi local |
-| Mac | `NSBluetoothAlwaysUsageDescription`, `com.apple.security.device.bluetooth` | Au lancement | Balise BLE |
-| Mac | `com.apple.security.network.server` | Au lancement | Recevoir les connexions |
+```
+entrée_n = {index, ts, type, appareil (pseudonyme), détail, preuve?, h_prec = SHA-256(entrée_{n-1})}
+signature_n = ECDSA(K_journal, étiquette ‖ entrée_n)
+fichier = AES-GCM(K_journal_enc, JSON)      ancre (Keychain) = {nombre d'entrées, dernier hash}
+```
 
-**Non demandées :** localisation, micro, photos, contacts, notifications push.
+Modifier, supprimer, réordonner ou tronquer le journal est détecté (5 tests). La « preuve » jointe (signature Face ID d'une réponse à un défi, signature du secours) rend les actions **non répudiables**.
 
-## 11. Plan de tests et d'attaque (étapes 4 et 5 de la boucle)
+## 11. Relais aveugle (extension P2) · `relay/`
 
-| # | Test | Résultat attendu | Menace |
-|---|---|---|---|
-| 1 | Rejouer une trame capturée | Rejetée (compteur), connexion fermée | Rejeu |
-| 2 | Modifier 1 bit du chiffré ou de l'en-tête | Échec du tag GCM, rejet | T1 |
-| 3 | Trame tronquée, ou de 1 Mo | Rejet sans plantage | T3, D2 |
-| 4 | Faux Mac avec une autre clé | Signature du handshake invalide, `NON VÉRIFIÉ` | S1 |
-| 5 | Cloner l'annonce BLE (app nRF Connect sur un autre téléphone) | Défi sans signature valide, verrouillage | S2 |
-| 6 | Réutiliser un QR code après 2 min ou après appairage | Refusé | S3 |
-| 7 | Annuler Face ID | Reste `VERROUILLÉ` | E1 |
-| 8 | Ajouter un visage dans Face ID après appairage | K_bio_I invalidée, réappairage nécessaire | E2 |
-| 9 | Modifier une ligne du journal du Mac | Chaîne rompue, détectée au contrôle | T2 |
-| 10 | Couper le Wi-Fi ou le Bluetooth | iPhone `VERROUILLÉ`, Mac `NON VÉRIFIÉ` | D1 |
-| 11 | Tests unitaires : HKDF avec deux sens donne des clés différentes, le nonce ne se répète jamais, un compteur ≤ dernier est rejeté | OK | Crypto |
-| 12 | Chercher dans les logs (Console.app) des clés, jetons ou RSSI | Aucun | I2 |
+Python 3, bibliothèque standard uniquement. Les jetons sont distincts et hachés, les messages font 4 Ko au plus, 100 par boîte, pour une durée de vie de 72 h et 60 requêtes/min. Aucun journal de contenu ni d'IP. Le serveur exige TLS 1.3 et tourne dans un service systemd confiné, derrière un pare-feu qui n'ouvre que le 443. Détails, API et déploiement : [relay/README.md](../relay/README.md).
 
-## 12. Découpage pour le J3 (MVP)
+## 12. Choix cryptographiques justifiés
 
-| Lot | Contenu | Rôle principal |
+Règle d'or (slide 16) : **ne jamais inventer sa propre cryptographie.** Nous n'utilisons que des primitives standard de CryptoKit, assemblées selon des schémas connus (TLS 1.3 / SIGMA pour le handshake, RFC 9180 pour HPKE).
+
+| Besoin | Choix | Alternatives rejetées |
 |---|---|---|
-| L1 | Module `CryptoService` (handshake, HKDF, trames AES-GCM, compteurs) + tests unitaires. **Écrit en premier et partagé iPhone/Mac** (Swift package local) | Architecte sécurité + dev |
-| L2 | Appairage : QR code (CoreImage côté Mac, AVFoundation côté iPhone), SAS, Keychain | Dev iOS |
-| L3 | BLE : `BeaconService` (Mac) + `ProximityMonitor` (iPhone) + défi signé | Dev iOS |
-| L4 | `LockController` + Face ID + zone protégée + masquage en arrière-plan | Dev iOS |
-| L5 | App Mac : supervision + journal chaîné | Dev |
-| L6 | Exécution du plan de tests (section 11) | Red team |
+| Signature | **ECDSA P-256** | Ed25519 : non supporté par la Secure Enclave, qui ne fait que du P-256. RSA : lourd, absent de la Secure Enclave. |
+| Échange de clés de session | **X25519 éphémère** | Clé partagée fixe : pas de forward secrecy. P-256 ECDH : correct aussi, mais X25519 est celui choisi au J1, plus simple et résistant aux erreurs de validation. |
+| Chiffrement de session | **AES-256-GCM**, une clé par sens | ECB : fuite de motifs. CBC seul : aucune intégrité, *padding oracle*. ChaCha20-Poly1305 : correct, mais AES est accéléré sur les puces Apple. |
+| Chiffrement « hors session » | **HPKE** (RFC 9180) | Chiffrement maison ECDH + AES : risque d'erreur d'assemblage. HPKE est standard et intégré à CryptoKit depuis iOS 17. |
+| Dérivation | **HKDF-SHA256** | Secret ECDH utilisé directement : pas uniforme, et une seule clé pour deux sens. |
+| Intégrité, balise, appairage | **HMAC-SHA256** | MD5 et SHA-1 : cassés. Hash sans clé : n'importe qui peut le recalculer. |
+| Aléa | **`SymmetricKey(size:)`** (générateur du système) | `random()`, horloge : prévisibles (slide 9). |
+| Comparaison de secrets | **`isValidAuthenticationCode`** (temps constant) | `==` : le temps de réponse fuit l'information. |
 
-Ordre conseillé : **L1 → L2 → L3 → L4 → L5**, puis L6 en continu. L1 est le socle : tout le reste en dépend, et c'est le code le plus sensible à relire.
+## 13. Permissions (moindre privilège)
+
+| Plateforme | Permission | Demandée quand | Pourquoi |
+|---|---|---|---|
+| iPhone | Bluetooth | Au lancement du mode choisi | Balise / surveillance |
+| iPhone | Caméra | Au premier scan | QR codes (aucune image conservée) |
+| iPhone | Localisation « Lors de l'utilisation » | **À l'armement** | Positions **en alerte seulement** |
+| iPhone | Notifications locales | À l'armement | Alarme écran verrouillé |
+| iPhone | Face ID | Première action sensible | Coffre, session, défis, levée d'alerte |
+| iPhone | Réseau local + Bonjour `_robair._tcp` | Première connexion | Canal avec le Mac |
+| iPhone | Modes d'arrière-plan `bluetooth-central`, `bluetooth-peripheral`, `location` | — | Réveil sur déconnexion, balise, envoi en alerte |
+| Mac | Sandbox + réseau serveur et client + caméra | Au lancement / au scan | Centrale, relais, QR de secours |
+
+**Non demandées :** localisation « Toujours », micro, photos, contacts, push, iCloud. Le Mac n'utilise **plus** le Bluetooth.
+
+## 14. Tests
+
+### Automatisés (exécutés)
+- **`RobAirKit` : 103 tests** (`cd RobAirKit && swift test`). Ils couvrent : handshake (faux Mac, faux iPhone, miroir, altération, clé de faible ordre, renouvellement), enveloppes (rejeu, retard de plus de 30 s, chaque bit modifié, sens croisés, `seq` forgé), décodage strict (champ inconnu, même imbriqué), appairage (jeton faux, réutilisé, expiré, 3 essais, empreinte, QR dont la K_enc n'est pas signée par la bonne clé), télémétrie (forgée, altérée, mauvaise clé, bornes, doublons, horodatage), défis et secours (rejeu, expiration, action échangée, autre Mac, faux Mac), balise (clone, rejeu), rupture (hystérésis, 3 s), machine à états, journal (modifié, supprimé, tronqué, reforgé).
+- **Relais : 15 tests** (`cd relay && python3 -m unittest`).
+
+> Les 103 tests ont été exécutés sous Linux avec `swift-crypto`, le portage officiel de CryptoKit (même API), dans un dossier temporaire hors du dépôt. **À relancer sur Mac avec CryptoKit avant le J3.**
+
+### Manuels, sur appareils (plan de la red team au J3)
+
+| # | Test | Attendu | STRIDE |
+|---|---|---|---|
+| 1 | Cloner l'UUID de la balise (nRF Connect sur un autre téléphone) | Preuve HMAC invalide → alerte | S |
+| 2 | S'éloigner avec le capteur armé | Alerte, coffre fermé, télémétrie sur le Mac | — |
+| 3 | Couper le Bluetooth de la balise | Alerte immédiate | D |
+| 4 | Faux Mac (autre Mac avec RobAir) | Handshake refusé | S |
+| 5 | Rejouer une trame capturée (Wireshark) | Rejetée, entrée au journal | T, rejeu |
+| 6 | Couper le Wi-Fi pendant l'alerte | Télémétrie via le relais, ou en file puis envoyée au retour | D |
+| 7 | Rejouer un ordre de secours capturé | Refusé | S, rejeu |
+| 8 | Ajouter un visage dans Face ID | K_id_iPhone et K_vault invalidées, réappairage | E |
+| 9 | Modifier `journal.bin`, ou supprimer les dernières entrées | Rupture ou troncature détectée | T |
+| 10 | Chercher positions, clés ou jetons dans Console.app | Rien | I |
+| 11 | Copier du texte du coffre | Pas de presse-papiers universel, expiration à 60 s | I |
+| 12 | Tuer l'app en alerte puis la relancer | Toujours en alerte | E |
+
+## 15. Limites et risques résiduels
+
+| Risque | Atténuation |
+|---|---|
+| **Relais BLE** (un complice retransmet la radio) | Non détectable sans mesure du temps de vol. Délai de réponse court, seuil RSSI. |
+| **Arrière-plan iOS** : minuteries suspendues, donc pas de défi HMAC ni de RSSI | En arrière-plan, la détection repose sur la **déconnexion** (J1 §10). Au premier plan, la détection est complète. |
+| Téléphone éteint ou en mode avion par le voleur | La première alerte part dès la rupture (J1 §1.3). |
+| Effacement mémoire impossible à garantir en Swift | Effacement au mieux. La vraie protection est la Secure Enclave plus Face ID. |
+| Relais saturé (`http.server`) | Extension de secours, le socle n'en dépend pas. La confidentialité n'est jamais touchée. |
+| Mac sans session opérateur | Sessions refusées (fail-safe). La télémétrie et le secours fonctionnent quand même. |
+| Accès Secure Enclave sur Mac avec un compte gratuit | Repli logiciel protégé par Touch ID. L'interface indique lequel est utilisé. **À vérifier au J3.** |

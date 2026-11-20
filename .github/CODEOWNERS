@@ -1,0 +1,31 @@
+# Propriétaires du code (J1 §6.1). GitHub demande automatiquement leur relecture.
+# Avec la règle « Require review from Code Owners », au moins UN propriétaire du dossier
+# (autre que l'auteur) doit approuver. Avec « 2 approbations », les deux non-auteurs approuvent.
+# Chaque ligne a deux propriétaires : si l'un est l'auteur de la PR, l'autre peut valider.
+# La dernière règle qui correspond l'emporte.
+#
+# @Br4tha      = chef de projet
+# @Samuel-DD07 = architecte sécurité
+# @Rayouuuuuu  = développeur iOS
+
+# Par défaut : toute l'équipe
+*                           @Br4tha @Samuel-DD07 @Rayouuuuuu
+
+# Code crypto et réseau : architecte sécurité + développeur
+/RobAirKit/                 @Samuel-DD07 @Rayouuuuuu
+/iOSApp/Network/            @Samuel-DD07 @Rayouuuuuu
+/iOSApp/Security/           @Samuel-DD07 @Rayouuuuuu
+/iOSApp/Telemetry/          @Samuel-DD07 @Rayouuuuuu
+/iOSApp/Bluetooth/          @Samuel-DD07 @Rayouuuuuu
+/iOSApp/Beacon/             @Samuel-DD07 @Rayouuuuuu
+/MacApp/Network/            @Samuel-DD07 @Rayouuuuuu
+/MacApp/Security/           @Samuel-DD07 @Rayouuuuuu
+/relay/                     @Samuel-DD07 @Rayouuuuuu
+/MacApp/Centrale.entitlements @Samuel-DD07 @Rayouuuuuu
+/iOSApp/Info.plist          @Samuel-DD07 @Rayouuuuuu
+
+# Architecture et menaces : architecte sécurité + chef de projet
+/docs/J2-architecture.md    @Samuel-DD07 @Br4tha
+
+# Règles du dépôt elles-mêmes : chef de projet + architecte
+/.github/                   @Br4tha @Samuel-DD07
