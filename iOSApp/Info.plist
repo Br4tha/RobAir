@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- RobAir (iPhone). Permissions : uniquement celles utiles, avec un texte clair (MASVS-PLATFORM).
+     Elles sont demandées au moment où on en a besoin : caméra à l'appairage, localisation et
+     notifications à l'armement, Face ID à la première action sensible. -->
+<plist version="1.0">
+<dict>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>RobAir surveille la présence de votre balise Bluetooth (ou joue le rôle de balise) pour détecter un vol.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>La caméra sert uniquement à scanner les QR codes d'appairage et de secours. Aucune image n'est conservée.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Face ID protège le coffre, la levée d'une alerte et les actions demandées par votre Mac.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>RobAir communique avec votre Mac (la centrale) sur le réseau local, par un canal chiffré.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>En cas d'alerte uniquement, la position du téléphone est envoyée chiffrée à votre Mac pour le retrouver.</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_robair._tcp</string>
+	</array>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>bluetooth-central</string>
+		<string>bluetooth-peripheral</string>
+		<string>location</string>
+	</array>
+</dict>
+</plist>
