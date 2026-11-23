@@ -83,6 +83,16 @@ Relevés en formalisant les protocoles. **À valider en équipe** : chaque point
 | 13 | Mac « balise » (ancienne architecture) | La balise est désormais le 2e iPhone | Le Mac n'utilise plus le Bluetooth : l'entitlement a été retiré (moindre privilège). |
 | 14 | État après redémarrage | Si iOS tue l'app en alerte, l'alerte ne doit pas disparaître | L'état armé ou en alerte est **persisté** dans le Keychain. Un chien de garde passe en alerte si l'app est armée mais que la balise n'est pas confirmée dans les 20 s. |
 
+### 3.1 Écart « relais » (J1 §1.4) : validé par l'architecte
+
+**Validé côté équipe** par l'architecte sécurité (Samuel Dorismond) le 23/11/2026, en extension P2, aux conditions suivantes :
+- le socle sur le Wi-Fi local (P0, P1) fonctionne **sans** le relais ; on coupe le relais avant de toucher au socle ;
+- le relais ne reçoit que de la télémétrie **signée puis chiffrée en HPKE** (§8) : il ne peut ni la lire ni la fabriquer ;
+- TLS 1.3 avec pinning (écart 11), jetons distincts et hachés, aucun journal de contenu ni d'IP (§11) ;
+- les menaces du relais restent couvertes par la STRIDE (J1 §4) et l'audit MASVS (J1 §5).
+
+L'accord de l'encadrant reste nécessaire (J1 §1.4). S'il refuse, on applique le repli : file locale chiffrée, renvoyée quand le Mac redevient joignable.
+
 ## 4. Appairages (§3.2 et §3.9)
 
 ### 4.1 Capteur ↔ Mac
