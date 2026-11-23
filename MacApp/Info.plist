@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- RobAir · Centrale (Mac). Le Mac n'utilise plus le Bluetooth : la balise est le 2e iPhone. -->
+<plist version="1.0">
+<dict>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_robair._tcp</string>
+	</array>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>La centrale reçoit les messages chiffrés de votre iPhone sur le réseau local.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>La caméra sert uniquement à lire le QR code de secours affiché par l'iPhone. Aucune image n'est conservée.</string>
+</dict>
+</plist>
