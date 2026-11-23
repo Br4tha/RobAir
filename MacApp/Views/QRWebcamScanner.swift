@@ -3,6 +3,7 @@
 // Moindre privilège : caméra allumée UNIQUEMENT pendant ce scan ; aucune image n'est conservée.
 // (AVCaptureMetadataOutput n'existe pas sur macOS : on analyse les images avec CIDetector.)
 
+import os
 import SwiftUI
 import AVFoundation
 import CoreImage

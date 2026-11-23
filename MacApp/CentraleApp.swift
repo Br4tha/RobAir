@@ -1,5 +1,6 @@
 // CentraleApp.swift (Mac) : point d'entrée de la centrale RobAir (supervision, alertes, journal, secours).
 
+import os
 import SwiftUI
 
 @main

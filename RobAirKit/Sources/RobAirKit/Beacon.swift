@@ -115,7 +115,7 @@ public struct RuptureDetector {
     public mutating func recordRSSI(_ rssi: Int, now: Date) -> State {
         guard rssi < 0 else { return state }   // CoreBluetooth renvoie 127 quand la mesure est indisponible
         samples.append((now, rssi))
-        samples.removeAll { now.timeIntervalSince($0.at) > config.averageWindow }
+        let window = config.averageWindow; samples.removeAll { now.timeIntervalSince($0.at) > window }
         let average = samples.map(\.rssi).reduce(0, +) / samples.count
         if average < config.lowThreshold {
             lowSince = lowSince ?? now

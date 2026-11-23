@@ -11,6 +11,7 @@
 // redemandent TOUJOURS Touch ID.
 // Un Mac différent à chaque séance → nouvelles clés → réappairage (voulu : clés non exportables).
 
+import os
 import Foundation
 import CryptoKit
 import LocalAuthentication

@@ -5,6 +5,8 @@
 // jamais « tout va bien » par défaut. L'alerte du Mac ne se termine que par une preuve de l'iPhone
 // (défi « fin d'alerte » signé après Face ID) ou par un acquittement de l'opérateur, journalisé comme tel.
 
+import Combine
+import os
 import SwiftUI
 import AppKit
 import CoreLocation

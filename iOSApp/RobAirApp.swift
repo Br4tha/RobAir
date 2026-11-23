@@ -5,6 +5,7 @@
 // Le mode n'est pas un secret : il est rangé dans UserDefaults (aucun secret n'y est jamais stocké).
 // Masque l'écran dès que l'app n'est plus active (aperçu multitâche, MASVS-PLATFORM).
 
+import os
 import SwiftUI
 
 enum AppMode: String {

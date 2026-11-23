@@ -1,10 +1,12 @@
 // PairingView.swift (iPhone, Capteur) : scan du QR code du Mac, puis empreinte courte à comparer (§3.2).
 
+import os
 import SwiftUI
 
 struct PairingView: View {
     @EnvironmentObject private var model: AppModel
     @State private var scanning = false
+    @AppStorage("robair.mode") private var modeRaw = ""
 
     var body: some View {
         VStack(spacing: 24) {
@@ -36,6 +38,12 @@ struct PairingView: View {
             }
         }
         .padding()
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Button("Changer de rôle") { modeRaw = "" }
+                    .disabled(model.pairingPhase != .idle)
+            }
+        }
         .sheet(isPresented: $scanning) {
             QRScannerView { code in
                 scanning = false

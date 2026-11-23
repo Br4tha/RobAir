@@ -4,6 +4,8 @@
 // AfterFirstUnlock : la balise doit répondre téléphone verrouillé) et montrée UNE fois en QR code
 // au capteur. Régénérer la clé = réappairer le capteur.
 
+import Combine
+import os
 import SwiftUI
 import RobAirKit
 

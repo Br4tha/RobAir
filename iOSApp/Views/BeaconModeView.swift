@@ -1,6 +1,7 @@
 // BeaconModeView.swift (iPhone, mode Balise)
 // Le QR code contient la clé K_balise : il n'est affiché qu'à la demande, 60 s au plus, avec un avertissement.
 
+import os
 import SwiftUI
 import RobAirKit
 

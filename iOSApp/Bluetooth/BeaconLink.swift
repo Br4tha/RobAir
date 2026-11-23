@@ -13,6 +13,7 @@
 // En arrière-plan, la détection repose donc sur la déconnexion (limite documentée, J1 §10).
 // Menaces : S (balise clonée → HMAC invalide → rupture), D (brouillage = déconnexion = alerte).
 
+import os
 import Foundation
 import CoreBluetooth
 import CryptoKit

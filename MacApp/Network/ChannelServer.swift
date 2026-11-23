@@ -10,6 +10,7 @@
 // Défenses (déni de service) : 4 connexions non authentifiées max, handshake ≤ 5 s, 20 trames/s max,
 // trames ≤ 4 Ko. Règle §3.4 : erreur = rejet SILENCIEUX + entrée au journal (jamais de détail renvoyé).
 
+import os
 import Foundation
 import Network
 import CryptoKit

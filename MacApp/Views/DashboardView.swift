@@ -1,6 +1,7 @@
 // DashboardView.swift (Mac) : tableau de bord de la centrale (J1 §2.2).
 // État du capteur, carte des positions reçues, actions (défis Face ID, secours), journal d'audit.
 
+import os
 import SwiftUI
 import MapKit
 import RobAirKit

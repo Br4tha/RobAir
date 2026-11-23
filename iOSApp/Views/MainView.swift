@@ -1,5 +1,6 @@
 // MainView.swift (iPhone, Capteur) : état, armement, balise, centrale, coffre.
 
+import os
 import SwiftUI
 import RobAirKit
 

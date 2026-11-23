@@ -10,6 +10,7 @@
 // le Mac, que l'iPhone ne peut lui-même pas relire. Une copie en mémoire sert aux envois (un fichier
 // CompleteUnlessOpen fermé n'est pas relisible téléphone verrouillé).
 
+import os
 import Foundation
 import RobAirKit
 

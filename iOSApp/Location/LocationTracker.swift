@@ -7,6 +7,7 @@
 //     l'utilisateur voit que RobAir est armé ;
 //   - les positions ne sont collectées et transmises QU'EN ALERTE ; aucune n'est stockée en clair.
 
+import os
 import Foundation
 import CoreLocation
 

@@ -9,6 +9,7 @@
 // Arrière-plan : mode bluetooth-peripheral. iOS réduit l'annonce en arrière-plan, mais une connexion
 // déjà établie continue de répondre. En démo, l'app Balise reste au premier plan (J1 §10).
 
+import os
 import Foundation
 import CoreBluetooth
 import CryptoKit

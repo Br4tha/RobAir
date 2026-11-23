@@ -2,6 +2,7 @@
 // EmergencySheet : demande de déverrouillage de secours à autoriser par Touch ID (J1 §3.8).
 // RelaySettingsSheet : réglages du relais aveugle (extension P2).
 
+import os
 import SwiftUI
 import AppKit
 import CoreImage.CIFilterBuiltins
