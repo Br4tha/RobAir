@@ -246,7 +246,7 @@ Elle sert aux actions sensibles vues depuis le Mac : fin d'alerte (« j'ai retro
 
 ## 6. Organisation de l'équipe et rôles
 
-Le rôle de **Red Team** tourne à chaque jalon. Chaque membre doit pouvoir expliquer **tout le code** à l'oral individuel.
+Le rôle de **Red Team** est tenu par le **chef de projet** sur tous les jalons. Chaque membre doit pouvoir expliquer **tout le code** à l'oral individuel.
 
 | Rôle | Responsabilités | Membre (GitHub) |
 | :--- | :--- | :--- |
@@ -254,13 +254,13 @@ Le rôle de **Red Team** tourne à chaque jalon. Chaque membre doit pouvoir expl
 | **Architecte sécurité** | STRIDE, choix crypto et leur justification, revues sécurité, relecture obligatoire de tout code crypto | Samuel Dorismond (`@Samuel-DD07`) |
 | **Développeur iOS** | Swift / SwiftUI, CoreBluetooth, CoreLocation, `RobAirKit`, app macOS | Rayann Bouheddou (`@Rayouuuuuu`) |
 
-**Rotation de la Red Team** (en plus de son rôle principal, et jamais sur son propre travail) :
+**Red Team** (en plus du rôle de chef de projet) :
 
 | Jalon | Red Team | Cible |
 | :---: | :--- | :--- |
-| J1 | Rayann Bouheddou | Attaque de la STRIDE et du cadrage |
+| J1 | Manaia Logologofolau | Attaque de la STRIDE et du cadrage |
 | J2 | Manaia Logologofolau | Attaque de l'architecture et du protocole |
-| J3 | Samuel Dorismond | Attaque du MVP (rejeu, clonage de balise, logs, stockage) |
+| J3 | Manaia Logologofolau | Attaque du MVP (rejeu, clonage de balise, logs, stockage) |
 | J4 | Toute l'équipe | Audit croisé MASVS de l'app d'un autre groupe |
 
 ### 6.1 Règles Git et revues

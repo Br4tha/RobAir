@@ -57,7 +57,7 @@ L'app installée avec un compte gratuit **expire après 7 jours** : il faut la r
 | Chef de projet | Manaia Logologofolau | `@Br4tha` |
 | Architecte sécurité | Samuel Dorismond | `@Samuel-DD07` |
 | Développeur iOS | Rayann Bouheddou | `@Rayouuuuuu` |
-| Red team | tourne à chaque jalon (J1 §6) | |
+| Red team | Manaia Logologofolau (chef de projet) | `@Br4tha` |
 
 ## Règles du dépôt (J1 §6.1)
 
