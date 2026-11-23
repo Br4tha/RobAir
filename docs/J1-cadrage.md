@@ -14,9 +14,10 @@ Cas d'usage type : on laisse son iPhone sur le bureau à côté du Mac. Quelqu'u
 ## 2. Périmètre
 
 ### Ce que fait l'iPhone (le capteur)
-- Se connecte en BLE au Mac et mesure la proximité : force du signal (RSSI), détection de la déconnexion, **preuve cryptographique que la balise est bien le Mac appairé**.
+- Se connecte en BLE au Mac et mesure la proximité : force du signal (RSSI), détection de la déconnexion, **preuve que la balise est bien le Mac appairé** (réponse HMAC à un défi aléatoire, avec un secret partagé à l'appairage).
 - Verrouille sa zone protégée en cas d'éloignement, de perte de liaison ou d'anomalie.
 - Exige Face ID pour toute action sensible (déverrouillage, désarmement).
+- Répond aux défis du Mac pour les actions sensibles, après Face ID.
 - Conserve ses clés dans la Secure Enclave (non exportables) et ses données dans le Keychain (`ThisDeviceOnly`) et dans des fichiers protégés.
 
 ### Ce que fait le Mac (la centrale)
@@ -26,7 +27,7 @@ Cas d'usage type : on laisse son iPhone sur le bureau à côté du Mac. Quelqu'u
 - Tient un **journal d'événements chiffré et chaîné** (toute modification est détectable), sans aucun secret.
 - Gère l'appairage par QR code.
 
-> **Choix de cadrage : le Mac sert à la fois de balise et de centrale.** Le sujet fournit un seul iPhone et un seul Mac par groupe. Une balise BLE du commerce (iBeacon) se clone en quelques secondes avec une app gratuite. Le Mac, lui, peut **signer** ses réponses BLE, donc prouver son identité.
+> **Choix de cadrage : le Mac sert à la fois de balise et de centrale.** Le sujet fournit un seul iPhone et un seul Mac par groupe. Une balise BLE du commerce (iBeacon) se clone en quelques secondes avec une app gratuite. Le Mac, lui, peut calculer un **HMAC** avec un secret partagé à l'appairage, donc prouver son identité.
 
 ### Hors périmètre (limites assumées)
 | Limite | Raison |
@@ -70,12 +71,12 @@ Cas d'usage type : on laisse son iPhone sur le bureau à côté du Mac. Quelqu'u
 | STRIDE | Menace concrète | Contre-mesures | Actifs |
 |---|---|---|---|
 | **S** · Usurpation | **S1.** Un faux Mac se présente comme la centrale sur le Wi-Fi. | Appairage par QR code : l'iPhone mémorise (« épingle ») la clé publique du Mac. Chaque session commence par un échange de clés **signé** par les clés d'identité. Un faux Mac ne peut pas produire la signature. | A3, A6 |
-| | **S2.** Une fausse balise BLE (clone de l'annonce du Mac) fait croire à l'iPhone qu'il est toujours à proximité. | **Défi-réponse BLE** : toutes les 10 s, l'iPhone envoie un nombre aléatoire et le Mac doit le signer avec sa clé d'identité. Pas de signature valide sous 2 s : on considère le Mac absent. | A3 |
+| | **S2.** Une fausse balise BLE (clone de l'annonce du Mac) fait croire à l'iPhone qu'il est toujours à proximité. | **Défi-réponse BLE par HMAC-SHA256** avec une clé K_ble partagée à l'appairage. Au premier plan, toutes les 10 s, l'iPhone envoie un nombre aléatoire et le Mac doit renvoyer le HMAC. Pas de réponse valide sous 2 s : on considère le Mac absent. En arrière-plan, la déconnexion BLE déclenche le verrouillage. | A3 |
 | | **S3.** Un faux iPhone envoie de faux états « tout va bien » au Mac. | Le Mac n'accepte que la clé publique de l'iPhone enregistrée à l'appairage. L'appairage est prouvé par un jeton à usage unique présent uniquement dans le QR code. | A3 |
 | **T** · Altération | **T1.** Modification en transit d'une alerte ou d'un état. | Chiffrement authentifié **AES-GCM** : un seul bit modifié et le déchiffrement échoue. L'en-tête est lui aussi authentifié (données associées, AAD). | A3 |
-| | **T2.** Modification ou suppression d'entrées du journal sur le Mac. | Journal **chaîné par hachage** (chaque entrée contient le SHA-256 de la précédente) et scellé par HMAC. Toute modification casse la chaîne. | A5 |
+| | **T2.** Modification ou suppression d'entrées du journal sur le Mac. | Journal **chaîné par hachage** (chaque entrée contient le SHA-256 de la précédente) et scellé par HMAC. Toute modification casse la chaîne. Une **tête de chaîne scellée**, stockée à part dans le Keychain, détecte aussi la troncature (suppression des dernières entrées). | A5 |
 | | **T3.** Paquet malformé visant un plantage ou un comportement inattendu. | Validation stricte : taille maximale de trame (4 Ko), version, type, champs obligatoires. Tout ce qui est invalide est rejeté avant traitement. | A3 |
-| **R** · Répudiation | **R1.** « Ce n'est pas moi qui ai déverrouillé ou désarmé. » | Les actions sensibles sont **signées par une clé Secure Enclave utilisable uniquement après Face ID**. Le Mac vérifie et archive la signature. | A5 |
+| **R** · Répudiation | **R1.** « Ce n'est pas moi qui ai déverrouillé ou désarmé. » | Les actions sensibles demandées par le Mac passent par un **défi-réponse** (slide 18) : défi aléatoire à usage unique, signé par une clé Secure Enclave utilisable uniquement après Face ID, liée à l'action et aux deux appareils. Le Mac vérifie et archive la signature. | A5 |
 | | **R2.** « Cette alerte n'a jamais été envoyée. » | Messages horodatés, numérotés et journalisés côté Mac. Journal chaîné (voir T2). | A5 |
 | **I** · Divulgation | **I1.** Écoute du Wi-Fi. | Tout est chiffré en AES-GCM avec des clés de session éphémères. | A2, A3 |
 | | **I2.** Secrets dans les logs, l'aperçu multitâche ou le presse-papiers. | Aucun secret dans les logs (`os.Logger` en mode privé). Écran masqué en arrière-plan. Aucune donnée copiée dans le presse-papiers. | A1, A4 |
@@ -95,6 +96,11 @@ Cas d'usage type : on laisse son iPhone sur le bureau à côté du Mac. Quelqu'u
 | Vol de l'iPhone **et** contrainte de l'utilisateur pour obtenir Face ID | Hors de portée technique | Journal horodaté côté Mac |
 | App tuée par l'utilisateur | Limite d'iOS | Le Mac détecte l'absence et passe en `NON VÉRIFIÉ` |
 | Appareil jailbreaké | Hors modèle de confiance | Les clés Secure Enclave restent non extractibles |
+| **Initié avec accès à la session macOS** | Il peut lire K_journal dans le Keychain du Mac | Le HMAC protège contre un attaquant extérieur, pas contre l'administrateur du Mac |
+| **Réinitialisation de la centrale** | Elle efface le journal, donc la preuve | Export proposé avant l'effacement |
+| **En arrière-plan, le Mac ne peut pas prouver que le lien BLE vient de l'iPhone appairé** | Pas de message authentifié régulier quand l'app est suspendue | Le Mac affiche `NON VÉRIFIÉ` ; la protection reste côté iPhone |
+| **Empreinte de l'iPhone visible en clair** dans le `HELLO` Wi-Fi | Le Mac doit savoir quelle clé publique utiliser avant le chiffrement | Pseudonyme, pas de donnée personnelle |
+| **Secret K_ble présent sur les deux appareils** | Un HMAC suppose un secret partagé | Stocké en `ThisDeviceOnly` ; qui le vole sur le Mac a déjà le Mac |
 
 ## 7. RGPD et minimisation
 

@@ -75,3 +75,13 @@
 - **Décision de l'équipe :** _à compléter_
 - **Vérification humaine :** _à compléter (recompiler et relancer les tests : le renommage touche le nom du module importé partout)._
 - **Validé par :** _à compléter_
+
+### P-06 · Relecture du J2, comparaison avec la note de cadrage et simplification pour le MVP
+- **Date · jalon · auteur :** 2026-11-23 · J2 · chef de projet
+- **Outil :** assistant IA de code (Claude)
+- **Contexte fourni :** J1 et J2 du dépôt, note de cadrage « BleSentry » de l'équipe.
+- **Demande (résumé fidèle) :** relire le J2, vérifier sa correspondance avec la note de cadrage BleSentry, recommander l'option la plus simple à implémenter qui couvre toutes les exigences du MVP, puis appliquer les choix retenus.
+- **Sortie de l'IA :** relecture critique (fonctionnement en arrière-plan d'iOS, troncature du journal, contenu signé non défini, ordre tag/compteur, MTU BLE). Constat que le dépôt (RobAir) diverge de la note BleSentry (balise = 2e iPhone, GPS, HPKE, relais, déverrouillage de secours). Recommandation : RobAir + défi-réponse de la slide 18.
+- **Décision de l'équipe :** base RobAir retenue, ajout du défi-réponse (slide 18), anti-clonage BLE par HMAC. GPS, relais et balise portée passent en extensions hors MVP. **Écart avec la note BleSentry à signaler à l'enseignant.**
+- **Vérification humaine :** _à compléter (relecture du diff)._
+- **Validé par :** _à compléter_
