@@ -3,6 +3,7 @@
 // Moindre privilège : la caméra n'est demandée et allumée
 // QUE pendant un scan ; aucune image n'est conservée (RGPD).
 
+import os
 import SwiftUI
 import AVFoundation
 

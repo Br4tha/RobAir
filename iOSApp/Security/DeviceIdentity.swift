@@ -8,6 +8,7 @@
 // Le Keychain ne stocke que les « blobs » opaques de la Secure Enclave, inutilisables ailleurs.
 // Menaces : I (vol de l'appareil), E (Face ID contourné, visage ajouté), R (non-répudiation).
 
+import os
 import Foundation
 import CryptoKit
 import LocalAuthentication

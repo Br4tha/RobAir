@@ -2,6 +2,7 @@
 // Fermer cet écran n'ouvre rien : le coffre exige K_vault, donc Face ID (J1 §4, ligne E).
 // Sortie : Face ID du propriétaire, ou déverrouillage de secours signé par le Mac après 3 échecs.
 
+import os
 import SwiftUI
 import RobAirKit
 

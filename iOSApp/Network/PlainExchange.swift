@@ -7,6 +7,7 @@
 // Face ID (K_id_iPhone), justement indisponible (voleur, ou Face ID en échec).
 // Fail-safe : délai dépassé, trame invalide ou mauvais type → erreur, rien n'est accepté.
 
+import os
 import Foundation
 import Network
 import RobAirKit

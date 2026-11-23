@@ -10,6 +10,7 @@
 // Fail-safe : la moindre erreur (trame invalide, rejeu, signature) ferme la connexion ; erreur = rejet
 // silencieux, on ne renvoie jamais de détail au Mac (§3.4).
 
+import os
 import Foundation
 import Network
 import CryptoKit

@@ -6,6 +6,7 @@
 //   - le compteur seq de la télémétrie : il ne doit JAMAIS revenir en arrière (anti-rejeu côté Mac)
 // Rien de tout cela n'est lisible par une autre app ni copié dans les sauvegardes.
 
+import os
 import Foundation
 import CryptoKit
 import RobAirKit

@@ -6,6 +6,7 @@
 // À la fermeture (verrouillage, alerte) : la clé et le texte sont effacés de la mémoire au mieux (§3.5).
 // Menaces : I (lecture sur un téléphone volé), E (contourner l'écran d'alerte : fermer l'écran n'ouvre rien).
 
+import os
 import Foundation
 import CryptoKit
 import LocalAuthentication

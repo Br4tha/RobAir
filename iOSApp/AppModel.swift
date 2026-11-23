@@ -11,6 +11,8 @@
 //   - après une levée de verrouillage : nouvelle session (nouveau handshake signé) ;
 //   - le coffre exige TOUJOURS Face ID, et jamais en alerte.
 
+import Combine
+import os
 import SwiftUI
 import UIKit
 import AudioToolbox

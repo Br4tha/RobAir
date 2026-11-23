@@ -1,5 +1,6 @@
 // RootView.swift (iPhone) : aiguillage du mode Capteur + écrans communs (choix du mode, masquage, QR).
 
+import os
 import SwiftUI
 import CoreImage.CIFilterBuiltins
 import RobAirKit
