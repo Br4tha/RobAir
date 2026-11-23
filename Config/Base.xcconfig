@@ -1,9 +1,14 @@
-// Base.xcconfig — réglages communs, versionnés.
+// Base.xcconfig — réglages communs aux deux apps, versionnés.
 // NE PAS mettre votre Team ID ici : il va dans Config/Signing.local.xcconfig (ignoré par git),
 // créé par scripts/setup.sh. Ainsi, changer de Mac ou de compte ne modifie pas le projet.
 
 ROBAIR_BUNDLE_PREFIX = fr.m2.changeme
 DEVELOPMENT_TEAM =
 CODE_SIGN_STYLE = Automatic
+
+// Swift 5 (le code n'est pas encore écrit pour le mode strict de Swift 6).
+SWIFT_VERSION = 5.0
+IPHONEOS_DEPLOYMENT_TARGET = 17.0
+MACOSX_DEPLOYMENT_TARGET = 14.0
 
 #include? "Signing.local.xcconfig"
