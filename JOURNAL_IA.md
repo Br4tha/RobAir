@@ -58,11 +58,11 @@
 
 ### Entrée #05 - [Date : 20/11/2026]
 * **Rôle demandeur :** _à compléter_
-* **Tâche visée :** renommage du projet et procédure git.
+* **Tâche visée :** renommage du projet.
 * **Prompt exact utilisé :**
-  > « Pour commencer change le nom du projet dans tous les docs et code, on l'a nommé "RobAir" qui est un jeu de mot avec le verbe rob en anglais et Air pour le coté apple. Et pour après fais moi la liste des commandes git pour faire un depot propre et professionnels. »
-* **Code proposé par l'IA :** renommage Antivol → RobAir (dossiers, types, service Bonjour `_robair._tcp`, étiquettes crypto, Keychain, logs, docs), puis liste des commandes git (branche par lot, PR relue, `main` protégée, tags de jalons).
-* **Corrections humaines :** dépôt créé par l'équipe ; `Projet M2.pdf` exclu du dépôt.
+  > « Pour commencer change le nom du projet dans tous les docs et code, on l'a nommé "RobAir" qui est un jeu de mot avec le verbe rob en anglais et Air pour le coté apple. »
+* **Code proposé par l'IA :** renommage Antivol → RobAir (dossiers, types, service Bonjour `_robair._tcp`, étiquettes crypto, Keychain, logs, docs).
+* **Corrections humaines :** `Projet M2.pdf` exclu du dépôt.
 * **Validation et tests :** _à compléter_
 * **Relecteur :** _à compléter_
 
@@ -106,16 +106,4 @@
 * **Code proposé par l'IA :** `docs/installation-et-test.md`. Il couvre le matériel, `setup.sh`, le lancement de la centrale, l'installation sur les deux iPhone (mode développeur, approbation du développeur), l'appairage Mac ↔ Capteur puis Capteur ↔ Balise, 10 scénarios de test, les logs, le dépannage et la fin de séance. Le guide est lié depuis `README.md` et `docs/xcode-setup.md`. Les libellés des boutons ont été recopiés depuis le code des vues.
 * **Corrections humaines :** _à compléter après un premier passage réel sur Mac (le guide n'a pas pu être exécuté par l'IA)._
 * **Validation et tests :** _à faire : suivre le guide pas à pas et corriger les écarts constatés._
-* **Relecteur :** _à compléter_
-
-### Entrée #09 - [Date : 20/11/2026]
-* **Rôle demandeur :** chef de projet
-* **Tâche visée :** état du dépôt git et processus de revue (2 approbations, architecte sur le code crypto).
-* **Prompt exact utilisé :**
-  > « Fais un etat actuel du git et dis moi quoi faire pour que tout soit a jour sachant que le developpeurs et architecte doivent approuvé notamment lors des MR. »
-
-  Puis : « Voici les deux autres membres : Rayouuuuuu : Developper, Samuel-DD07 : Architecte, Moi : Chef de projet. »
-* **Code proposé par l'IA :** état du dépôt (refonte non commitée, `feat/robairkit` à ne pas fusionner) ; découpage en 3 PR empilées (docs, code, relais) ; réglages GitHub (ruleset sur `main` : 2 approbations, Code Owners, pas de contournement, merge commit uniquement) ; `.github/CODEOWNERS` et `.github/pull_request_template.md`. Mise à jour des rôles dans le J1 §6 et le README. Inversion de la Red Team J2/J3 pour respecter la règle « jamais sur son propre travail » : l'architecte ne peut pas attaquer sa propre architecture.
-* **Corrections humaines :** _à compléter (valider l'inversion de la Red Team)._
-* **Validation et tests :** _à faire : vérifier sur GitHub qu'une PR sans 2 approbations ne peut pas être fusionnée, même par le propriétaire._
 * **Relecteur :** _à compléter_
