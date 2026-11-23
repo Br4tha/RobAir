@@ -19,10 +19,18 @@ L'iPhone surveille sa proximité BLE avec le Mac appairé. S'il s'éloigne, perd
 
 | Rôle | Membre |
 |---|---|
-| Chef de projet | |
-| Architecte sécurité | |
-| Développeur iOS | |
-| Red team (tourne à chaque jalon) | |
+| Chef de projet | Rayann Bouheddou |
+| Architecte sécurité | Samuel Dorismond |
+| Développeur iOS | Manaia Logologofolau |
+
+**Red team : rotation à chaque jalon**, en plus du rôle principal. Personne n'attaque son propre travail.
+
+| Jalon | Red team | Cible |
+|---|---|---|
+| J1 | Manaia Logologofolau | Cadrage et STRIDE (rédigés par l'architecte) |
+| J2 | Rayann Bouheddou | Architecture et protocole (conçus par l'architecte) |
+| J3 | Samuel Dorismond | MVP : rejeu, clonage BLE, logs, stockage (code du dev iOS) |
+| J4 | Toute l'équipe | Audit croisé MASVS de l'app d'un autre groupe |
 
 ## Règles du dépôt
 
