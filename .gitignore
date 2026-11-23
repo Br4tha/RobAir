@@ -25,5 +25,5 @@ xcuserdata/
 Secrets.xcconfig
 
 # Réglages de signature personnels (créés par scripts/setup.sh)
-Config/Signing.local.xcconfig
+config/Signing.local.xcconfig
 Projet M2.pdf

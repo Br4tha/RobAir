@@ -1,5 +1,5 @@
 // Base.xcconfig — réglages communs, versionnés.
-// NE PAS mettre votre Team ID ici : il va dans Config/Signing.local.xcconfig (ignoré par git),
+// NE PAS mettre votre Team ID ici : il va dans config/Signing.local.xcconfig (ignoré par git),
 // créé par scripts/setup.sh. Ainsi, changer de Mac ou de compte ne modifie pas le projet.
 
 ROBAIR_BUNDLE_PREFIX = fr.m2.changeme
