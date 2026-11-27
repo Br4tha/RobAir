@@ -54,16 +54,20 @@ struct MainView: View {
             }
 
             Section("Balise") {
+                // RT-2 : modifier la balise exige d'être désarmé + Face ID (vérifié aussi dans AppModel).
                 if model.beaconPaired {
-                    Button("Oublier la balise", role: .destructive) { model.forgetBeacon() }
+                    Button("Oublier la balise (Face ID)", role: .destructive) { Task { await model.forgetBeacon() } }
+                        .disabled(model.protection != .disarmed)
                 } else {
                     Button("Scanner le QR code de la balise") { scanningBeacon = true }
+                        .disabled(model.protection != .disarmed)
                 }
             }
 
             Section("Avancé") {
                 Button("Envoyer une télémétrie de test") { model.sendTestTelemetry() }
-                Button("Oublier cette centrale", role: .destructive) { confirmForgetCentrale = true }
+                Button("Oublier cette centrale (Face ID)", role: .destructive) { confirmForgetCentrale = true }
+                    .disabled(model.protection != .disarmed)
                 Button("Changer le rôle de cet iPhone") { modeRaw = "" }
                     .disabled(model.protection != .disarmed)
             }
@@ -71,13 +75,13 @@ struct MainView: View {
         .sheet(isPresented: $scanningBeacon) {
             QRScannerView { code in
                 scanningBeacon = false
-                model.pairBeacon(qrText: code)
+                Task { await model.pairBeacon(qrText: code) }
             }
             .ignoresSafeArea()
         }
         .confirmationDialog("Oublier la centrale ? Les clés, le coffre et la file de télémétrie seront effacés.",
                             isPresented: $confirmForgetCentrale, titleVisibility: .visible) {
-            Button("Oublier et effacer", role: .destructive) { model.forgetCentrale() }
+            Button("Oublier et effacer", role: .destructive) { Task { await model.forgetCentrale() } }
         }
     }
 }

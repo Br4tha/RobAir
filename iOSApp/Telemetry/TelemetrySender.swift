@@ -21,6 +21,7 @@ final class TelemetrySender {
         let trigger: TelemetryTrigger
         let envelope: Data      // enveloppe HPKE sérialisée (opaque)
         let ackSecret: Data     // pour reconnaître l'accusé du Mac
+        let createdAtMs: UInt64? // date de création (optionnelle : relit une file d'une version antérieure)
     }
 
     var onQueueChange: ((Int) -> Void)?
@@ -56,7 +57,8 @@ final class TelemetrySender {
             let envelope = try TelemetryCrypto.seal(payload, signer: identity.loadTelemetry(),
                                                     macKey: centrale.encryptionPublicKey(),
                                                     epoch: centrale.encryptionKey.epoch, macID: centrale.macID)
-            items.append(Item(seq: payload.seq, trigger: trigger, envelope: try envelope.serialized(), ackSecret: payload.ackSecret))
+            items.append(Item(seq: payload.seq, trigger: trigger, envelope: try envelope.serialized(),
+                              ackSecret: payload.ackSecret, createdAtMs: payload.timestampMs))
             trim()
             persist()
             flush(centrale: centrale)
@@ -67,6 +69,7 @@ final class TelemetrySender {
 
     /// Envoie la file dans l'ordre (seq croissant : le Mac refuse un seq plus petit que le dernier accepté).
     func flush(centrale: CentraleConfig) {
+        dropExpired()
         guard !flushing, !items.isEmpty else { return }
         flushing = true
         Task { @MainActor in
@@ -103,6 +106,18 @@ final class TelemetrySender {
             return "relais"
         }
         return nil
+    }
+
+    /// Faille RT-1 (défense en profondeur) : un message de plus de 72 h serait refusé par le Mac ;
+    /// on l'abandonne pour qu'il ne bloque jamais la tête de la file.
+    private func dropExpired(now: Date = Date()) {
+        let limit = now.addingTimeInterval(-RobAirConstants.telemetryMaxAge).millisecondsSince1970
+        let before = items.count
+        items.removeAll { ($0.createdAtMs ?? UInt64.max) < limit }
+        if items.count != before {
+            Log.app.notice("File de télémétrie : \(before - items.count) message(s) de plus de 72 h abandonné(s)")
+            persist()
+        }
     }
 
     private func trim() {

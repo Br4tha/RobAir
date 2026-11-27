@@ -326,11 +326,26 @@ final class CentraleModel: ObservableObject {
         guard let identity, var device = paired, envelope.iphoneID == device.iphoneID else { throw RobAirError.unknownDevice }
         let payload = try TelemetryCrypto.open(envelope, privateKey: keyring.privateKey(epoch: envelope.epoch),
                                                macID: identity.macID, telemetryKey: device.telemetryPublicKey())
-        guard try device.telemetry.accept(payload) == .accepted else { return payload.ackSecret }   // doublon : accusé quand même
+        switch device.telemetry.accept(payload) {
+        case .accepted:
+            break
+        case .duplicate:
+            return payload.ackSecret   // doublon : accusé quand même
+        case .outOfWindow:
+            // Faille RT-1 corrigée : authentique (signature K_tel vérifiée) mais hors fenêtre.
+            // On l'acquitte pour débloquer la file de l'iPhone, sans l'afficher comme position actuelle.
+            logRejection("position authentique mais hors fenêtre de 72 h (seq \(payload.seq)) : acquittée, non affichée")
+            return payload.ackSecret
+        }
         try pairedStore.save(device)
         paired = device
 
         var detail = "\(payload.trigger.label) · via \(via)"
+        // Position restée en file : on affiche sa date RÉELLE, pas l'heure de réception (J2 écart 4).
+        let sentAt = Date(millisecondsSince1970: payload.timestampMs)
+        if Date().timeIntervalSince(sentAt) > 60 {
+            detail += " · émise le \(sentAt.formatted(date: .abbreviated, time: .shortened)) (différée)"
+        }
         if let lat = payload.lat, let lon = payload.lon {
             detail += String(format: " · position %.5f, %.5f", lat, lon)
             if let accuracy = payload.accuracy { detail += String(format: " (±%.0f m)", accuracy) }

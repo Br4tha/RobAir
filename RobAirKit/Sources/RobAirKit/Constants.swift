@@ -20,6 +20,9 @@ public enum RobAirConstants {
     public static let timestampWindowLocal: TimeInterval = 30
     /// Écart d'horloge toléré pour la télémétrie (différée : file d'attente, relais).
     public static let timestampWindowDeferred: TimeInterval = 300
+    /// Télémétrie : âge maximal accepté (J2 écart 4, tranché par l'architecte le 23/11/2026).
+    /// Une position peut attendre dans la file de l'iPhone (Mac injoignable) ou sur le relais (72 h).
+    public static let telemetryMaxAge: TimeInterval = 72 * 3600
 
     // MARK: Session locale (§3.3)
     /// Renouvellement des clés de session (nouvel échange X25519 dans la session).

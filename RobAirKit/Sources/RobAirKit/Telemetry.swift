@@ -6,7 +6,7 @@
 //   3. Chiffrement : HPKE (X25519, HKDF-SHA256, AES-256-GCM) pour la clé K_enc_Mac en vigueur.
 //      Fonctionne SANS session ouverte, donc aussi via le relais. Le champ `info` lie le message
 //      à iphone_id et mac_id ; l'en-tête de l'enveloppe est authentifié (AAD).
-//   4. Réception (Mac) : déchiffrement, vérification de la signature, seq, horodatage (±300 s), journal, accusé.
+//   4. Réception (Mac) : déchiffrement, vérification de la signature, seq, horodatage (72 h dans le passé, 300 s dans le futur), journal, accusé.
 //
 // Accusé de réception : le contenu chiffré porte un secret aléatoire `ackSecret` que seul le Mac peut lire.
 // Le Mac le renvoie pour prouver la réception ; un attaquant réseau ne peut donc pas forger d'accusé
@@ -176,19 +176,29 @@ public enum TelemetryCrypto {
     }
 }
 
-/// Côté Mac : anti-rejeu de la télémétrie (seq strictement croissant + horodatage ±300 s).
-/// Un doublon (même message reçu par le canal local ET par le relais) n'est pas une attaque :
-/// il est simplement ignoré, mais on renvoie quand même l'accusé.
+/// Côté Mac : anti-rejeu de la télémétrie, APRÈS déchiffrement et vérification de la signature K_tel.
+///   - seq strictement croissant : un message déjà vu (rejeu, ou reçu par le local ET le relais) est ignoré ;
+///   - fenêtre asymétrique (J2 écart 4) : 72 h dans le passé (file d'attente, relais), 300 s dans le futur.
+/// Audit Red Team (faille RT-1) : un message authentique mais hors fenêtre n'est PLUS une erreur.
+/// Avant, il n'était jamais acquitté : il restait en tête de la file de l'iPhone et BLOQUAIT toutes
+/// les positions suivantes. Désormais il est acquitté (le Mac a pu le déchiffrer) mais n'est ni affiché
+/// ni compté comme position actuelle.
 public struct TelemetryReceiver: Codable, Equatable {
-    public enum Outcome: Equatable { case accepted, duplicate }
+    public enum Outcome: Equatable {
+        case accepted       // nouveau, dans la fenêtre : affiché et journalisé
+        case duplicate      // seq déjà vu : ignoré (accusé renvoyé quand même)
+        case outOfWindow    // authentique mais trop vieux / trop en avance : journalisé, non affiché
+    }
 
     public private(set) var lastSeq: UInt64
 
     public init(lastSeq: UInt64 = 0) { self.lastSeq = lastSeq }
 
-    public mutating func accept(_ payload: TelemetryPayload, now: Date = Date()) throws -> Outcome {
+    public mutating func accept(_ payload: TelemetryPayload, now: Date = Date()) -> Outcome {
         guard payload.seq > lastSeq else { return .duplicate }
-        try Freshness.check(timestampMs: payload.timestampMs, now: now, window: RobAirConstants.timestampWindowDeferred)
+        guard Freshness.isWithin(timestampMs: payload.timestampMs, now: now,
+                                 maxAge: RobAirConstants.telemetryMaxAge,
+                                 maxAhead: RobAirConstants.timestampWindowDeferred) else { return .outOfWindow }
         lastSeq = payload.seq
         return .accepted
     }
