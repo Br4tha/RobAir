@@ -23,7 +23,7 @@ Le vol d'iPhone « à l'arraché » dans l'espace public (souvent commis à vél
 
 * **Détection du vol :** l'iPhone reste connecté à la balise et surveille la rupture de connexion et la chute du signal (RSSI).
 * **Verrouillage réflexe de l'application :** à la rupture, RobAir ferme son coffre chiffré, efface au mieux les secrets de sa mémoire vive et affiche un écran d'alerte qui exige Face ID.
-* **Alerte et télémétrie :** l'iPhone envoie immédiatement une alerte puis ses positions GPS, signées par la **Secure Enclave** et chiffrées pour le Mac. Sur le Wi-Fi local, elles passent par le canal direct ; hors de portée, par un **relais Internet aveugle** (§3.6).
+* **Alerte et télémétrie :** l'iPhone envoie immédiatement une alerte puis ses positions GPS, signées par la **Secure Enclave** et chiffrées pour le Mac. Elles passent par le canal Wi-Fi local direct. Si le Mac n'est pas joignable, elles restent dans une **file locale chiffrée** et partent dès qu'il l'est de nouveau (§1.4).
 * **Déverrouillage de secours par le Mac :** en cas de fausse alerte et d'échec répété de Face ID, le Mac appairé peut lever le verrouillage **de l'application** par un défi-réponse signé (§3.8).
 
 ### 1.3 Périmètre et limites assumées (iOS, compte gratuit)
@@ -35,11 +35,11 @@ Ces limites sont posées dès le J1 pour ne pas surpromettre à la soutenance :
 | AirPods et Apple Watch ne sont pas accessibles comme périphériques BLE par CoreBluetooth : impossible de lire leur RSSI ou de leur envoyer un défi cryptographique. Une app peut seulement savoir si des AirPods sont connectés (sortie audio, `AVAudioSession`), ce qui ne donne ni distance ni preuve d'identité et provoque des faux positifs (boîtier, batterie). La liaison de l'Apple Watch, gérée par le système, reste « joignable » via le Wi-Fi même à distance. | La déconnexion des AirPods pourra servir de **signal secondaire** (P2) pour déclencher l'alerte, jamais pour la lever. La balise de confiance est le **mode « Balise »** de RobAir, lancé sur un second iPhone que porte l'utilisateur (celui d'un membre de l'équipe pour la démo). Ce mode expose un service GATT propre avec `CBPeripheralManager`. Coût : 0 €, sans matériel en plus, avec le même code Swift. Plus tard, une carte ESP32 (≈ 5 €) pourra remplacer ce second téléphone. |
 | En arrière-plan, iOS limite le BLE et suspend les apps. | On active les modes d'arrière-plan `bluetooth-central` et `location` : l'événement de déconnexion est livré même en arrière-plan, et la localisation en continu garde l'app active pour l'envoi. |
 | Téléphone éteint ou en mode avion : plus aucun envoi. | La première alerte part **dès la rupture**, en priorité absolue : c'est la dernière position connue qui compte. |
-| Pas d'APNs ni d'iCloud avec un compte gratuit. | Aucune notification push : le Mac **interroge** le relais à intervalle régulier (§3.6). |
+| Pas d'APNs ni d'iCloud avec un compte gratuit. | Aucune notification push : le Mac reçoit la télémétrie **uniquement par le Wi-Fi local** (§1.4). |
 | L'app installée expire au bout de 7 jours. | Réinstallation depuis Xcode avant chaque démo et chaque séance d'audit (§7). |
 
-### 1.4 Écart au sujet à faire valider au J1 (extension, priorité P2)
-Le sujet prévoit un canal iPhone ↔ Mac **sur le Wi-Fi local**, et ce canal reste le socle du projet (§11). **En extension seulement**, une fois le socle imposé terminé, nous proposons d'ajouter un **relais Internet aveugle** pour la télémétrie hors de portée. Le relais ne voit que des messages chiffrés de bout en bout et signés. Il ne peut ni les lire ni les falsifier. Il est intégré à la STRIDE (§4) et à l'audit MASVS (§5). **Si l'encadrant refuse cet écart**, le repli prévu : les positions sont gardées dans une file locale chiffrée et renvoyées dès que le Mac redevient joignable.
+### 1.4 Écart au sujet : « relais Internet aveugle », refusé par l'encadrant (23/11/2026)
+Le sujet prévoit un canal iPhone ↔ Mac **sur le Wi-Fi local**, et ce canal reste le socle du projet (§11). Nous avions proposé, en extension (P2), un **relais Internet aveugle** pour la télémétrie hors de portée. **L'encadrant a refusé cet écart le 23/11/2026.** Le repli prévu s'applique : les positions (alerte et GPS, signées et chiffrées en HPKE) sont gardées dans une **file locale chiffrée** sur l'iPhone et renvoyées sur le Wi-Fi local dès que le Mac redevient joignable. Il n'y a aucun chemin par Internet.
 
 ---
 
@@ -63,9 +63,9 @@ Le sujet prévoit un canal iPhone ↔ Mac **sur le Wi-Fi local**, et ce canal re
                                            ├───────────────────────────────────►│
                                            │  (session E2E éphémère, AES-GCM)   │
                                            │                                    │
-                                           │ 4b. Hors de portée : HTTPS         │
-                                           ├────────►[Relais : mini-serveur]◄───┤ (le Mac interroge)
-                                           │  (HPKE + signature Secure Enclave) │
+                                           │ 4b. Mac injoignable : file locale  │
+                                           │  chiffrée, renvoi au retour du     │
+                                           │  Wi-Fi (HPKE + signature S. E.)    │
                                            │                                    │
                                            │ 5. Déverrouillage de secours       │
                                            │◄──────────────────────────────────►│ (défi de l'iPhone,
@@ -86,26 +86,16 @@ Le sujet prévoit un canal iPhone ↔ Mac **sur le Wi-Fi local**, et ce canal re
 * **Tableau de bord :** état du capteur (armé, en alerte, verrouillé), carte des positions reçues.
 * **Journal d'audit :** ajout seul et chaîné par hash (chaque entrée contient le hash de la précédente), ce qui rend toute altération détectable.
 * **Autorité de secours :** détient la clé maîtresse, non exportable, dans la Secure Enclave du Mac (puce Apple M). Chaque signature exige Touch ID ou le mot de passe de session.
-* **Interrogation du relais :** toutes les 30 s pendant une alerte.
+* **Réception de la télémétrie :** uniquement par le canal Wi-Fi local.
 
 ### 2.3 Relais aveugle (mini-serveur auto-hébergé), extension P2
-* Simple boîte aux lettres : il stocke des messages opaques, avec une durée de vie limitée.
-* **Hébergement :** le mini-serveur de l'équipe est exposé sur Internet par une redirection du **port 443 seul** sur la box.
-  * **Prérequis à vérifier :** une IP publique, pas de partage d'IP entre abonnés chez l'opérateur (CGNAT), et un nom de domaine. Un DNS dynamique gratuit peut servir de nom de domaine.
-* **Durcissement :**
-  * utilisateur système dédié ;
-  * pare-feu qui n'ouvre que le port 443 ;
-  * SSH fermé côté Internet ;
-  * mises à jour automatiques ;
-  * relais isolé du reste du réseau domestique si la box le permet.
-* HTTPS en TLS 1.3, certificat Let's Encrypt. Le **pinning** de la clé publique du serveur est fait dans les apps.
-* Stack à trancher au J2. Critère : le **minimum de dépendances**, toutes vérifiées.
+Refusé par l'encadrant le 23/11/2026, voir §1.4.
 
 ---
 
 ## 3. Protocoles cryptographiques et réseau (Zero Trust)
 
-Le Wi-Fi local, Internet et le relais sont tous considérés comme **non fiables**.
+Le Wi-Fi local et le réseau en général sont considérés comme **non fiables**.
 
 ### 3.1 Inventaire des clés
 
@@ -123,11 +113,9 @@ Le Wi-Fi local, Internet et le relais sont tous considérés comme **non fiables
 **Fichiers.** Tous les fichiers sont en `NSFileProtectionComplete`, comme l'exige le sujet. **Une seule exception**, justifiée : la file d'envoi de télémétrie est en `CompleteUnlessOpen`, parce qu'elle doit pouvoir être écrite téléphone verrouillé. Elle ne contient que des messages **déjà chiffrés pour le Mac**, que l'iPhone ne peut lui-même pas relire.
 
 ### 3.2 Appairage initial (QR code + empreinte)
-1. Le Mac génère `K_id_Mac` et `K_enc_Mac`. Il affiche un QR code contenant `{mac_id, pk_id_Mac, pk_enc_Mac, url_relais, empreinte_tls_relais, jeton_appairage (usage unique, 5 min)}`.
+1. Le Mac génère `K_id_Mac` et `K_enc_Mac`. Il affiche un QR code contenant `{mac_id, pk_id_Mac, pk_enc_Mac, jeton_appairage (usage unique, 5 min)}`.
 2. L'iPhone scanne le QR code, génère `K_id_iPhone` et `K_tel_iPhone` dans la Secure Enclave, puis envoie ses clés publiques au Mac sur le réseau local, avec le jeton d'appairage.
 3. Les deux écrans affichent une **empreinte courte** (6 chiffres, calculée par SHA-256 sur toutes les clés publiques échangées). L'utilisateur vérifie qu'elle est identique sur les deux. C'est ce qui bloque l'homme du milieu.
-4. Le Mac crée la boîte aux lettres sur le relais. Il transmet à l'iPhone son jeton d'écriture par le canal chiffré (§3.3), et garde pour lui le jeton de lecture.
-
 ### 3.3 Session locale avec forward secrecy
 À chaque connexion iPhone ↔ Mac :
 1. Chaque côté génère une paire **X25519 éphémère** et **signe sa clé publique éphémère** avec sa clé d'identité. La signature porte aussi sur les deux identifiants et un aléa de 32 octets fourni par chaque côté.
@@ -142,7 +130,7 @@ Enveloppe = { version, type, sender_id, seq, timestamp, ciphertext, tag }
 ```
 * L'en-tête est authentifié comme **données associées** (AAD) d'AES-GCM.
 * **Nonce GCM** = préfixe de sens + compteur. Il n'est jamais réutilisé.
-* **Anti-rejeu :** le message est refusé si `seq ≤ dernier seq accepté`, ou si l'horodatage s'écarte de plus de 30 s (300 s pour la télémétrie différée via le relais).
+* **Anti-rejeu :** le message est refusé si `seq ≤ dernier seq accepté`, ou si l'horodatage s'écarte de plus de 30 s (pour la télémétrie différée par la file locale : 300 s dans le futur et 72 h dans le passé au plus).
 * **Validation stricte des entrées :**
   * taille maximale de 4 Ko par message ;
   * décodage typé (`Codable`) avec des types et des bornes vérifiés (latitude dans [−90, 90]…) ;
@@ -155,17 +143,14 @@ Dès que la rupture BLE est confirmée (§3.9) :
 2. **Contenu du message :**
    $$\text{Payload} = \{\text{type}: \text{TELEMETRY}, \text{iphone\_id}, \text{seq}, \text{timestamp}, \text{lat}, \text{lon}, \text{accuracy}, \text{battery}, \text{trigger}\}$$
 3. **Signature :** `K_tel_iPhone`, dans la Secure Enclave.
-4. **Chiffrement pour le Mac :** **HPKE** (X25519, HKDF-SHA256, AES-256-GCM, CryptoKit, iOS 17 et plus) avec la clé publique `K_enc_Mac` en vigueur. Il marche **sans session ouverte**, donc aussi via le relais. Le champ `info` d'HPKE lie le message à `iphone_id` et `mac_id`.
-5. **Acheminement :** le canal local si le Mac est joignable, sinon `POST` HTTPS vers la boîte aux lettres du relais. En cas d'échec, le message reste dans la file locale (100 entrées au plus) et part dès que le réseau revient.
-6. **Réception sur le Mac :** déchiffrement HPKE, vérification de la signature `K_tel_iPhone`, contrôle de `seq` et de l'horodatage, ajout au journal chaîné, puis acquittement. Une fois acquitté, le message est supprimé du relais et de la file.
+4. **Chiffrement pour le Mac :** **HPKE** (X25519, HKDF-SHA256, AES-256-GCM, CryptoKit, iOS 17 et plus) avec la clé publique `K_enc_Mac` en vigueur. Il marche **sans session ouverte**, donc aussi pour des messages mis en file puis renvoyés plus tard. Le champ `info` d'HPKE lie le message à `iphone_id` et `mac_id`.
+5. **Acheminement :** le canal Wi-Fi local si le Mac est joignable. Sinon, le message reste dans la file locale (100 entrées au plus) et part dès que le Mac est de nouveau joignable.
+6. **Réception sur le Mac :** déchiffrement HPKE, vérification de la signature `K_tel_iPhone`, contrôle de `seq` et de l'horodatage, ajout au journal chaîné, puis acquittement. Une fois acquitté, le message est supprimé de la file.
 
 **Forward secrecy de la télémétrie :** elle est limitée à la période de rotation de `K_enc_Mac` (une semaine). Ce compromis est documenté pour le J2.
 
 ### 3.6 Relais aveugle : sécurité
-* **Ce qu'il voit :** des messages chiffrés, leur taille, l'heure et l'IP d'origine. **Ce qu'il ne voit pas :** les positions. Il ne peut pas non plus fabriquer un message valide, faute des clés privées.
-* **Contrôle d'accès :** un identifiant de boîte aléatoire de 128 bits, plus des jetons d'écriture (iPhone) et de lecture (Mac) distincts, rangés dans le Keychain.
-* **Limites :** 4 Ko par message, 60 requêtes par minute et par boîte, durée de vie de 72 h, aucune journalisation des contenus, IP conservées 24 h au plus.
-* **Pinning TLS :** l'empreinte de la clé publique du relais est fournie à l'appairage. Même si le TLS tombait, le chiffrement de bout en bout tient.
+Refusé par l'encadrant le 23/11/2026, voir §1.4.
 
 ### 3.7 Authentification forte par défi-réponse (Mac → iPhone), conforme au sujet p.18
 Elle sert aux actions sensibles vues depuis le Mac : fin d'alerte (« j'ai retrouvé mon téléphone »), désarmement, changement de configuration.
@@ -194,16 +179,13 @@ Elle sert aux actions sensibles vues depuis le Mac : fin d'alerte (« j'ai retro
 | **S** Usurpation | iPhone | Un attaquant sur le Wi-Fi se fait passer pour le Mac et envoie un faux déverrouillage. | Réponse signée par `K_id_Mac` **sur un défi émis par l'iPhone** (§3.8), clé publique fixée à l'appairage. |
 | **S** Usurpation | Balise BLE | Le voleur clone ou relaie l'annonce de la balise pour que l'iPhone se croie toujours à côté. | Défi HMAC périodique avec `K_balise` (§3.9). |
 | **S** Usurpation | Appairage | Homme du milieu pendant l'échange des clés. | Clés transmises par QR code + comparaison humaine de l'empreinte courte (§3.2). |
-| **S** Usurpation | Relais | Faux relais par DNS ou interception TLS. | Pinning de la clé publique + chiffrement de bout en bout : un faux relais ne lit ni ne fabrique rien. |
 | **T** Altération | Réseau | Modification des coordonnées GPS en transit. | AEAD (AES-GCM / HPKE) + signature Secure Enclave du contenu. |
 | **T** Altération | Mac | Modification du journal d'audit après coup. | Journal en ajout seul, **chaîné par hash**, et entrées signées. |
 | **R** Répudiation | Tous | Contestation d'une alerte (« ce n'est jamais arrivé », « fausse alerte »). | Signatures Secure Enclave non exportables + `seq` + horodatage + journal chaîné. |
 | **I** Divulgation | Wi-Fi | Écoute passive des positions. | Session éphémère E2E avec forward secrecy (§3.3). |
-| **I** Divulgation | Relais | Relais compromis ou hébergeur curieux. | Il ne voit que des messages chiffrés. Métadonnées (IP, heure) limitées par une durée de conservation courte. **Risque résiduel accepté.** |
 | **I** Divulgation | iPhone | Secrets ou positions dans les logs, le presse-papiers ou l'aperçu multitâche. | `os.Logger` en `privacy: .private`, aucune donnée sensible dans les logs. Presse-papiers local à l'appareil, expiration à 60 s. Masquage de l'aperçu multitâche. |
 | **I** Divulgation | iPhone | Lecture des fichiers sur un téléphone volé et verrouillé. | `NSFileProtectionComplete`. Seule la file d'envoi fait exception, et elle ne contient que des messages déjà chiffrés pour le Mac (§3.1). |
 | **D** Déni de service | BLE | Brouillage pour provoquer des verrouillages intempestifs. | Hystérésis. En cas de doute, l'app verrouille (échec sécurisé, *fail-safe*), et Face ID réarme. |
-| **D** Déni de service | Relais | Saturation de la boîte aux lettres. | Limitation de débit, taille maximale, quota par boîte, jetons d'écriture. |
 | **D** Déni de service | iPhone | Le voleur éteint le téléphone ou active le mode avion. | **Limite assumée :** l'alerte part dès la rupture, avant toute action du voleur. |
 | **E** Élévation | iPhone | Contourner l'écran d'alerte pour ouvrir le coffre. | Le coffre exige `K_vault`, qui exige Face ID (`biometryCurrentSet`). Fermer l'écran n'ouvre rien. |
 | **E** Élévation | Mac | Vol ou usage abusif de la clé maîtresse. | Secure Enclave du Mac ou Keychain + Touch ID à chaque signature. Révocation : **nouvel appairage physique**, qui invalide les anciennes clés côté iPhone. |
@@ -224,7 +206,7 @@ Elle sert aux actions sensibles vues depuis le Mac : fin d'alerte (« j'ai retro
 3. **MASVS-AUTH :** Face ID pour le coffre, défi-réponse Mac → iPhone signé par la Secure Enclave (§3.7), défi iPhone → Mac pour le secours (§3.8).
 4. **MASVS-NETWORK :**
    * canal local E2E avec forward secrecy ;
-   * relais en HTTPS TLS 1.3 avec pinning, ATS laissé actif sans exception ;
+   * ATS laissé actif sans exception ;
    * aucune donnée en clair sur aucun réseau.
 5. **MASVS-PLATFORM :**
    * permissions demandées au bon moment, avec un texte clair ;
@@ -233,12 +215,11 @@ Elle sert aux actions sensibles vues depuis le Mac : fin d'alerte (« j'ai retro
 6. **MASVS-CODE :**
    * aucun secret écrit en dur ;
    * validation stricte des entrées réseau et BLE (§3.4) ;
-   * zéro dépendance tierce côté iPhone et Mac ;
-   * relais avec des dépendances minimales et vérifiées.
+   * zéro dépendance tierce côté iPhone et Mac.
 7. **MASVS-RESILIENCE :** échec sécurisé (perte de lien ou doute ⇒ verrouillage), journal d'audit chaîné.
 8. **MASVS-PRIVACY :**
    * positions collectées et transmises **seulement en alerte** ;
-   * durée de vie limitée sur le relais ;
+   * durée de vie limitée (72 h) des messages dans la file locale ;
    * aucune donnée personnelle dans les logs ;
    * consentement explicite pour la localisation et le Bluetooth.
 
@@ -304,11 +285,11 @@ Conformément à la partie 1 du cadre pédagogique :
 
 | Jalon | Intitulé | Objectif et livrable | Échéance |
 | :---: | :--- | :--- | :---: |
-| **J1** | **Cadrage** | Sujet validé, **écart « relais » validé ou refusé**, STRIDE initiale, rôles, dépôt Git créé | lun. 23/11/2026 |
-| **J2** | **Architecture** | Schéma réseau, protocoles §3 formalisés, justification des choix crypto, choix de la stack du relais | lun. 30/11/2026 |
+| **J1** | **Cadrage** | Sujet validé, **écart « relais » refusé par l'encadrant, repli appliqué**, STRIDE initiale, rôles, dépôt Git créé | lun. 23/11/2026 |
+| **J2** | **Architecture** | Schéma réseau, protocoles §3 formalisés, justification des choix crypto | lun. 30/11/2026 |
 | **J3** | **MVP** | Socle P0 + P1 (§11) : appairage QR, canal local chiffré, rupture BLE, écran d'alerte, télémétrie signée vers le Mac | lun. 07/12/2026 |
 | **J4** | **Audit croisé** | Audit MASVS de l'app d'un autre groupe, rapport de failles et correctifs sur notre app | jeu. 10/12/2026 |
-| **J5** | **Soutenance** | Démo en direct (rupture, alerte, déverrouillage de secours, plus le relais s'il est prêt) et oral individuel | **mar. 15/12/2026 (date limite)** |
+| **J5** | **Soutenance** | Démo en direct (rupture, alerte, déverrouillage de secours, plus l'envoi différé depuis la file locale) et oral individuel | **mar. 15/12/2026 (date limite)** |
 
 La date limite du 15/12 est fixée par la promotion. Les dates intermédiaires sont **proposées** et laissent environ 3 semaines et demie au total. Il faut réinstaller l'app le **14/12** à cause de l'expiration à 7 jours (§7).
 
@@ -318,12 +299,11 @@ La date limite du 15/12 est fixée par la promotion. Les dates intermédiaires s
 
 | Risque | Probabilité | Impact | Parade |
 | :--- | :---: | :---: | :--- |
-| Écart « relais Internet » refusé | Moyenne | Moyen | Repli : file locale chiffrée et renvoi plus tard (§1.4) |
+| Écart « relais Internet » refusé (23/11/2026) | Réalisé | Moyen | Repli appliqué : file locale chiffrée et renvoi au retour du Mac (§1.4). Pas de télémétrie reçue tant que le Mac est hors de portée |
 | BLE peu fiable en arrière-plan (faux positifs ou détection tardive) | Haute | Haut | Calibrer au J3, s'appuyer sur la déconnexion, hystérésis |
 | Effacement mémoire impossible à garantir en Swift | Certaine | Faible | Présenté comme fait *au mieux*. La protection repose sur la Secure Enclave et Face ID |
 | App expirée le jour de la démo | Moyenne | Haut | Procédure §7 |
 | Clé maîtresse du Mac perdue | Faible | Haut | Nouvel appairage physique. Pas de sauvegarde de la clé, par choix de sécurité |
-| Mini-serveur injoignable depuis Internet (CGNAT, box) | Moyenne | Faible | Le relais est en P2 : le socle imposé n'en dépend pas, et le repli §1.4 s'applique |
 | Planning serré (≈ 3,5 semaines) | Haute | Haut | Ordre P0 → P1 → P2 imposé (§11). On coupe P2 avant de toucher au socle |
 | Le 2e iPhone (balise) suspend la publicité BLE en arrière-plan | Moyenne | Moyen | Une fois connecté, le service GATT continue de répondre (mode `bluetooth-peripheral`). En démo, l'app Balise reste au premier plan |
 
@@ -349,5 +329,5 @@ On ne commence un niveau que lorsque le précédent fonctionne et a été relu.
 11. Télémétrie signée par `K_tel_iPhone` et chiffrée en HPKE vers le Mac, sur le canal local + file d'attente.
 12. Déverrouillage de secours par défi de l'iPhone. Tableau de bord et journal chaîné sur le Mac.
 
-**P2 : extension (prérequis : P1 et écart validé au J1)**
-13. Relais aveugle sur le mini-serveur, pinning TLS, interrogation par le Mac.
+**P2 : extension (prérequis : P1)**
+13. *Sans objet : relais aveugle refusé par l'encadrant (§1.4).*

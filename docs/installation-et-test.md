@@ -12,7 +12,7 @@
 | **iPhone B** (iOS 17 ou plus récent) | **Balise** : le téléphone qu'on garde sur soi | oui pour tester la rupture BLE |
 | Un câble USB-C ou Lightning | première installation sur chaque iPhone | oui |
 | Un **identifiant Apple** (compte gratuit) | signature des apps | oui |
-| Le même réseau Wi-Fi pour le Mac et l'iPhone A | canal local chiffré | oui (sauf test du relais) |
+| Le même réseau Wi-Fi pour le Mac et l'iPhone A | canal local chiffré | oui |
 
 **Avec le simulateur seul**, on ne peut tester que l'interface. Il n'a pas de caméra pour scanner les QR codes, pas de Bluetooth, pas de Secure Enclave et pas de Face ID. L'appairage, la balise et l'alerte demandent de **vrais iPhone**.
 
@@ -36,9 +36,7 @@ Le script crée ensuite `Config/Signing.local.xcconfig`. Ce fichier est ignoré 
 ## 2. Vérifier le module seul (facultatif, rapide)
 
 ```bash
-cd RobAirKit && swift test          # 103 tests, toute la crypto et la logique de sécurité
-cd ../relay && python3 -m unittest  # 15 tests du relais (seulement si l'extension P2 est retenue)
-```
+cd RobAirKit && swift test          # 103 tests, toute la crypto et la logique de sécurité```
 
 ## 3. Ouvrir le projet Xcode
 
@@ -102,12 +100,10 @@ Faire les tests dans l'ordre. Chaque résultat va dans la **grille du J2 §14**.
 | 4 | Sur l'iPhone A, appuyer sur **Lever l'alerte avec Face ID**. | Retour à l'état normal. |
 | 5 | Sur le Mac, cliquer sur **Fin d'alerte (téléphone retrouvé)**, puis sur l'iPhone A **Confirmer avec Face ID**. | Le défi Mac → iPhone est accepté et une entrée « challenge » apparaît dans le journal. Essayer aussi avec **Refuser**. |
 | 6 | Sur l'iPhone A, appuyer sur **Envoyer une télémétrie de test**. | Une position arrive sur le Mac. |
-| 7 | Couper le Wi-Fi du Mac, puis déclencher une alerte. | Les positions attendent dans la file de l'iPhone. Elles arrivent au retour du Wi-Fi, si elles ont moins de 300 s (question ouverte n°4 du J2). |
+| 7 | Couper le Wi-Fi du Mac, puis déclencher une alerte. | Les positions attendent dans la file de l'iPhone. Elles arrivent au retour du Wi-Fi, si elles ont 72 h au plus (J2 §3, écart 4). |
 | 8 | Sur l'iPhone A en alerte, échouer plusieurs fois Face ID, puis appuyer sur **Demander le déverrouillage à la centrale**. | Un QR code s'affiche. Sur le Mac, cliquer sur **Lire une demande de secours (webcam)**, comparer le code à 6 chiffres puis cliquer sur **Autoriser (Touch ID)**. L'iPhone scanne la réponse avec **Scanner la réponse du Mac**. |
 | 9 | Sur le Mac, cliquer sur **Vérifier l'intégrité** du journal. | Le résultat affiché est **Intact**. |
 | 10 | Sur le Mac, cliquer sur **Verrouiller**, puis sur l'iPhone A **Se connecter**. | La session est refusée : la centrale est verrouillée. |
-
-**Relais (P2, seulement si l'écart est validé) :** déployer le relais en suivant [relay/README.md](../relay/README.md). Dans **Réglages du relais…**, saisir l'URL, le *pin* et la clé d'enrôlement. Mettre le Mac sur un autre réseau, déclencher une alerte, puis cliquer sur **Interroger le relais maintenant**.
 
 ## 9. Voir les journaux de l'app
 
@@ -129,7 +125,7 @@ Dans Xcode, la **console** affiche les logs en bas de l'écran pendant un lancem
 
 ## 11. Fin de séance sur un Mac prêté
 
-1. Dans l'app Mac, cliquer sur **Réinitialiser la centrale**. Cela efface les clés, l'appairage, le relais et le journal. Il faudra réappairer l'iPhone à la prochaine séance.
+1. Dans l'app Mac, cliquer sur **Réinitialiser la centrale**. Cela efface les clés, l'appairage et le journal. Il faudra réappairer l'iPhone à la prochaine séance.
 2. Lancer `sh scripts/cleanup.sh`. Le script supprime `Signing.local.xcconfig`, les builds et les DerivedData.
 3. Faire `git push` de son travail.
 4. Dans *Xcode > Settings > Accounts*, **retirer son identifiant Apple**.

@@ -7,22 +7,21 @@ Le vol « à l'arraché » vise des iPhone **déjà déverrouillés**. RobAir su
 Quand le téléphone s'éloigne de la balise, ou que celle-ci ne prouve plus son identité (défi HMAC), RobAir passe en **alerte** :
 - son **coffre chiffré se ferme** et les secrets sont effacés de la mémoire ;
 - un **écran d'alerte exige Face ID** ;
-- une **alerte puis les positions GPS** partent aussitôt, **signées** par la Secure Enclave et **chiffrées** pour le Mac (la centrale). Elles passent par le Wi-Fi local ou, hors de portée, par un **relais Internet aveugle**.
+- une **alerte puis les positions GPS** partent aussitôt, **signées** par la Secure Enclave et **chiffrées** pour le Mac (la centrale). Elles passent par le Wi-Fi local. Hors de portée du Mac, elles restent dans une **file locale chiffrée** sur l'iPhone et partent dès que le Mac est de nouveau joignable.
 
 En cas de fausse alerte et d'échec répété de Face ID, le Mac peut lever le verrouillage de l'app par un **défi-réponse signé**.
 
 ```
 [Balise : 2e iPhone] ──BLE + défi HMAC──► [iPhone : capteur] ──Wi-Fi local, E2E──► [Mac : centrale]
-                                                      └──HTTPS, HPKE──► [Relais aveugle] ◄── le Mac interroge
 ```
 
 ## Documents
 
 | Jalon (échéance proposée) | Document | État |
 |---|---|---|
-| J1 · Cadrage (lun. 23/11) | [docs/J1-cadrage.md](docs/J1-cadrage.md) : problématique, périmètre, protocoles, STRIDE, MASVS, rôles, calendrier | ✅ à valider (écart « relais ») |
+| J1 · Cadrage (lun. 23/11) | [docs/J1-cadrage.md](docs/J1-cadrage.md) : problématique, périmètre, protocoles, STRIDE, MASVS, rôles, calendrier | ✅ écart relais refusé, repli appliqué |
 | J2 · Architecture (lun. 30/11) | [docs/J2-architecture.md](docs/J2-architecture.md) : protocoles formalisés, choix crypto, **écarts au J1 à valider**, tests | ✅ rédigé |
-| J3 · MVP (lun. 07/12) | Code ci-dessous | 🟠 écrit et testé (module, relais) ; apps à compiler sur Mac |
+| J3 · MVP (lun. 07/12) | Code ci-dessous | 🟠 écrit et testé (module) ; apps à compiler sur Mac |
 | J4 · Audit croisé (jeu. 10/12) | — | à venir |
 | J5 · Soutenance (mar. 15/12) | [docs/fiche-oral.md](docs/fiche-oral.md) : questions, réponses, scénario de démo | amorcé |
 | Transverse | [JOURNAL_IA.md](JOURNAL_IA.md) : journal des prompts commenté | en continu |
@@ -35,8 +34,7 @@ En cas de fausse alerte et d'échec répété de Face ID, le Mac peut lever le v
 |---|---|---|
 | [RobAirKit/](RobAirKit) | Package Swift partagé : **toute la crypto et toute la logique de sécurité**, sans interface | `cd RobAirKit && swift test` (103) |
 | [iOSApp/](iOSApp) | App iPhone, deux modes : **Capteur** (surveillance, coffre, alerte, télémétrie) et **Balise** | sur appareil (J2 §14) |
-| [MacApp/](MacApp) | App macOS : centrale (tableau de bord, carte, journal, défis, secours, relais) | sur appareil |
-| [relay/](relay) | Relais aveugle (extension P2), Python bibliothèque standard, déploiement durci | `cd relay && python3 -m unittest` (15) |
+| [MacApp/](MacApp) | App macOS : centrale (tableau de bord, carte, journal, défis, secours) | sur appareil |
 | [Config/](Config), [scripts/](scripts) | Réglages Xcode communs ; `setup.sh` / `cleanup.sh` pour les Mac prêtés | — |
 
 **Aucune dépendance tierce** côté iPhone et Mac : uniquement les frameworks Apple (CryptoKit, Security, LocalAuthentication, CoreBluetooth, CoreLocation, Network, AVFoundation, CoreImage, MapKit).
