@@ -119,6 +119,12 @@ public enum Freshness {
         let sent = Date(millisecondsSince1970: timestampMs)
         guard abs(sent.timeIntervalSince(now)) <= window else { throw RobAirError.staleTimestamp }
     }
+
+    /// Variante asymétrique : un message peut être ANCIEN (jusqu'à `maxAge`), presque pas en avance.
+    public static func isWithin(timestampMs: UInt64, now: Date = Date(), maxAge: TimeInterval, maxAhead: TimeInterval) -> Bool {
+        let age = now.timeIntervalSince(Date(millisecondsSince1970: timestampMs))
+        return age <= maxAge && -age <= maxAhead
+    }
 }
 
 public extension P256.Signing.PublicKey {

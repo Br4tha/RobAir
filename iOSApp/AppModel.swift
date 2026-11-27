@@ -9,7 +9,9 @@
 //     première alerte envoyée IMMÉDIATEMENT (même sans position), puis positions toutes les 15 s ;
 //   - sortir de l'alerte : Face ID, ou déverrouillage de secours signé par le Mac après 3 échecs ;
 //   - après une levée de verrouillage : nouvelle session (nouveau handshake signé) ;
-//   - le coffre exige TOUJOURS Face ID, et jamais en alerte.
+//   - le coffre exige TOUJOURS Face ID, et jamais en alerte ;
+//   - changer la configuration de protection (oublier ou remplacer la balise, oublier la centrale)
+//     exige d'être DÉSARMÉ et un Face ID frais (audit Red Team, faille RT-2).
 
 import Combine
 import os
@@ -141,7 +143,9 @@ final class AppModel: ObservableObject {
 
     func resetPairingPhase() { pairingPhase = .idle }
 
-    func forgetCentrale() {
+    /// Faille RT-2 corrigée : avant, ce bouton désarmait SANS Face ID (contournement de « Désarmer »).
+    func forgetCentrale() async {
+        guard await authorizeConfigurationChange("Oublier la centrale") else { return }
         disarmImmediately()
         client.stop()
         closeVault(save: false)
@@ -154,7 +158,9 @@ final class AppModel: ObservableObject {
 
     // MARK: - Appairage de la balise (§3.9)
 
-    func pairBeacon(qrText: String) {
+    func pairBeacon(qrText: String) async {
+        // Remplacer la balise pendant la surveillance = la désactiver : même règle que « Désarmer ».
+        guard await authorizeConfigurationChange("Changer de balise") else { return }
         do {
             let code = try BeaconPairingCode.parse(qrText: qrText)
             try beaconStore.save(code)
@@ -164,7 +170,10 @@ final class AppModel: ObservableObject {
         }
     }
 
-    func forgetBeacon() {
+    /// Faille RT-2 corrigée : avant, « Oublier la balise » désarmait SANS Face ID. Un tiers qui tenait
+    /// le téléphone déverrouillé pouvait couper la surveillance en un geste, sans alerte.
+    func forgetBeacon() async {
+        guard await authorizeConfigurationChange("Oublier la balise") else { return }
         disarmImmediately()
         link?.stop()
         link = nil
@@ -364,9 +373,11 @@ final class AppModel: ObservableObject {
     /// Face ID du propriétaire. Après 3 échecs, le déverrouillage de secours est proposé.
     func liftAlertWithFaceID() async {
         guard protection.isAlert else { return }
-        guard let context = await authenticate("Lever l'alerte RobAir") else {
-            faceIDFailures += 1
-            return
+        let context: LAContext
+        switch await evaluateFaceID("Lever l'alerte RobAir") {
+        case .success(let validated): context = validated
+        case .failed: faceIDFailures += 1; return   // seul un vrai échec rapproche du secours (RT-3)
+        case .cancelled: return
         }
         apply(machine.handle(.ownerAuthenticated))
         // §3.3 : nouvelle négociation après chaque levée de verrouillage, avec ce même Face ID.
@@ -476,15 +487,44 @@ final class AppModel: ObservableObject {
 
     // MARK: - Face ID
 
-    /// Renvoie un LAContext validé par Face ID (biométrie seule : le code de l'appareil ne suffit pas).
-    private func authenticate(_ reason: String) async -> LAContext? {
+    /// Configuration de protection : seulement DÉSARMÉ, et avec un Face ID frais (RT-2).
+    private func authorizeConfigurationChange(_ reason: String) async -> Bool {
+        guard protection == .disarmed else {
+            errorMessage = "Désarmez d'abord la surveillance (Face ID)."
+            return false
+        }
+        return await authenticate(reason) != nil
+    }
+
+    private enum FaceIDResult {
+        case success(LAContext)
+        case failed      // visage refusé ou biométrie bloquée : un VRAI échec
+        case cancelled   // « Annuler », app en arrière-plan, autre interruption : PAS un échec
+    }
+
+    /// Faille RT-3 corrigée : avant, « Annuler » comptait comme un échec de Face ID. Un voleur pouvait
+    /// donc atteindre le déverrouillage de secours en appuyant 3 fois sur « Annuler ».
+    /// Biométrie seule : le code de l'appareil ne suffit pas (pas de bouton de repli).
+    private func evaluateFaceID(_ reason: String) async -> FaceIDResult {
         let context = LAContext()
         context.localizedCancelTitle = "Annuler"
+        context.localizedFallbackTitle = ""   // masque « Saisir le code »
         do {
-            guard try await context.evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, localizedReason: reason) else { return nil }
-            return context
+            let ok = try await context.evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, localizedReason: reason)
+            return ok ? .success(context) : .failed
+        } catch let error as LAError {
+            switch error.code {
+            case .authenticationFailed, .biometryLockout: return .failed
+            default: return .cancelled
+            }
         } catch {
-            return nil
+            return .cancelled
         }
+    }
+
+    /// Renvoie un LAContext validé par Face ID, ou nil (échec ou annulation).
+    private func authenticate(_ reason: String) async -> LAContext? {
+        if case .success(let context) = await evaluateFaceID(reason) { return context }
+        return nil
     }
 }

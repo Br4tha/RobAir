@@ -80,16 +80,37 @@ final class TelemetryTests: XCTestCase {
         XCTAssertThrowsError(try seal(payload(lat: 48, lon: nil)))
     }
 
-    /// Anti-rejeu : seq strictement croissant, horodatage à ±300 s ; doublon = ignoré sans erreur.
-    func testReceiverRejectsReplayAndStaleMessages() throws {
+    /// Anti-rejeu : seq strictement croissant ; doublon = ignoré sans erreur.
+    func testReceiverRejectsReplay() {
         var receiver = TelemetryReceiver()
         let first = payload(seq: 1), second = payload(seq: 2)
-        XCTAssertEqual(try receiver.accept(first), .accepted)
-        XCTAssertEqual(try receiver.accept(first), .duplicate)
-        XCTAssertEqual(try receiver.accept(second), .accepted)
-        XCTAssertEqual(try receiver.accept(first), .duplicate)
-        XCTAssertThrowsError(try receiver.accept(payload(seq: 3, now: Date().addingTimeInterval(-301))))
+        XCTAssertEqual(receiver.accept(first), .accepted)
+        XCTAssertEqual(receiver.accept(first), .duplicate)
+        XCTAssertEqual(receiver.accept(second), .accepted)
+        XCTAssertEqual(receiver.accept(first), .duplicate)
         XCTAssertEqual(receiver.lastSeq, 2)
+    }
+
+    /// J2 écart 4 : 72 h dans le passé (file d'attente, relais), 300 s dans le futur au plus.
+    func testDeferredTelemetryWindowIsAsymmetric() {
+        var receiver = TelemetryReceiver()
+        XCTAssertEqual(receiver.accept(payload(seq: 1, now: Date().addingTimeInterval(-71 * 3600))), .accepted)
+        XCTAssertEqual(receiver.accept(payload(seq: 2, now: Date().addingTimeInterval(-10 * 60))), .accepted)
+        XCTAssertEqual(receiver.accept(payload(seq: 3, now: Date().addingTimeInterval(299))), .accepted)
+        XCTAssertEqual(receiver.accept(payload(seq: 4, now: Date().addingTimeInterval(301))), .outOfWindow)
+        XCTAssertEqual(receiver.accept(payload(seq: 5, now: Date().addingTimeInterval(-73 * 3600))), .outOfWindow)
+        XCTAssertEqual(receiver.lastSeq, 3)   // hors fenêtre : ne fait pas avancer le compteur
+    }
+
+    /// Faille RT-1 (audit Red Team) : un message authentique mais trop vieux ne doit plus BLOQUER la file.
+    /// Avant : erreur → pas d'accusé → message éternellement en tête de file → plus aucune position.
+    /// Après : « hors fenêtre » (pas d'erreur), le Mac renvoie l'accusé, et le message suivant passe.
+    func testStaleMessageDoesNotBlockTheQueue() {
+        var receiver = TelemetryReceiver()
+        let stale = payload(seq: 1, now: Date().addingTimeInterval(-80 * 3600))
+        let fresh = payload(seq: 2)
+        XCTAssertEqual(receiver.accept(stale), .outOfWindow)
+        XCTAssertEqual(receiver.accept(fresh), .accepted)
     }
 
     func testAckSecretIsRandomPerMessage() {
