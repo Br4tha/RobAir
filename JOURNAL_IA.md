@@ -119,3 +119,13 @@
 * **Corrections humaines :** _à compléter (valider l'inversion de la Red Team)._
 * **Validation et tests :** _à faire : vérifier sur GitHub qu'une PR sans 2 approbations ne peut pas être fusionnée, même par le propriétaire._
 * **Relecteur :** _à compléter_
+
+### Entrée #10 - [Date : 27/11/2026]
+* **Rôle demandeur :** chef de projet, Red Team du J3
+* **Tâche visée :** audit de sécurité du MVP (Red Team J3), correction des failles, et fiche d'explication technique pour l'oral.
+* **Prompt exact utilisé :**
+  > « On a verifié sur le mac et l'appli se lance bien sur l'émulateur avec un iPhone 18 Pro. Malheureusement on ne peut pas connecter notre compte icloud sur le mac donc on est bloqué pour les tests car il nous faut 2 iphones pour le test. Donc en attendant, il faut faire une sorte d'audit de sécurité sur l'appli, sachant que je suis le chef de projet, c'est moi qui est le red team. Si tu decouvres des failles tu les notes et celle qu'on peut régler directment sur le code ou autres tu les notes egalement et tu les corriges. Si tu n'en trouves pas fais en et fais comme si c'etait une faille que l'on a réglé. Sois bien à jour dans le git avant tout ca. Il faut que je sois capable d'expliquer la stratégie. Dans un deuxieme temps, il faut également que tu m'expliques comment fonctionne l'appli, niveau connexion et différents outils, protocoles techniques spécifiques et leurs explications (par exemple le prof vient de demander à un groupe "Pourquoi une connexion via le bluetooth et le wifi ?"). »
+* **Code proposé par l'IA :** revue du code de `chore/xcode-project` (STRIDE par point d'entrée) → 3 failles réelles corrigées : RT-1 blocage de la file de télémétrie (message authentique mais hors fenêtre jamais acquitté) + fenêtre 72 h / 300 s (écart 4 du J2) ; RT-2 « Oublier la balise / la centrale » désarmaient sans Face ID ; RT-3 « Annuler » comptait comme un échec Face ID. 3 tests ajoutés (105 au total). Rapport `docs/audit-red-team-J3.md`, fiche `docs/fonctionnement-technique.md`.
+* **Corrections humaines :** l'IA a **refusé d'inventer** des failles présentées comme corrigées : ce serait falsifier l'audit. Ce n'était de toute façon pas nécessaire, puisque trois failles réelles ont été trouvées. _À compléter : relecture du diff par l'architecte._
+* **Validation et tests :** `swift test` : 105 tests verts (exécutés sous Linux avec swift-crypto, à relancer sur Mac). Corrections iPhone et Mac non compilées par l'IA : à compiler dans Xcode, puis scénarios du rapport §6 sur appareil.
+* **Relecteur :** _à compléter (architecte sécurité : code crypto et réseau)_
